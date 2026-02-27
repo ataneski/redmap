@@ -178,6 +178,11 @@
         }
         .plan-remove:hover { color: #c0392b; }
         .plan-actions { display: flex; gap: 6px; margin-top: 8px; }
+        .btn-gmaps {
+            width: 100%; margin-top: 6px; padding: 7px; background: #34A853; color: #fff;
+            border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;
+        }
+        .btn-gmaps:hover { background: #2d9249; }
         .btn-optimize {
             flex: 1; padding: 7px; background: #f39c12; color: #fff;
             border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;
@@ -325,6 +330,7 @@
             <button class="btn-optimize" id="btn-optimize">Оптимизирај рута</button>
             <button class="btn-clear-plan" id="btn-clear-plan">X</button>
         </div>
+        <button class="btn-gmaps" id="btn-gmaps-route">Отвори во Google Maps</button>
         <div id="plan-route-info"></div>
     </div>
     <div id="route-info">
@@ -1983,6 +1989,17 @@
 
         // Plan panel events
         document.getElementById('btn-optimize').addEventListener('click', optimizePlanRoute);
+        document.getElementById('btn-gmaps-route').addEventListener('click', () => {
+            const plan = getPlan();
+            if (plan.length === 0) return;
+            const locs = plan.map(id => locations.find(l => l.id === id)).filter(Boolean);
+            const origin = myLatLng ? `${myLatLng[0]},${myLatLng[1]}` : `${locs[0].lat},${locs[0].lng}`;
+            const dest = locs[locs.length - 1];
+            const waypoints = locs.slice(myLatLng ? 0 : 1, -1).map(l => `${l.lat},${l.lng}`).join('|');
+            let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest.lat},${dest.lng}&travelmode=driving`;
+            if (waypoints) url += `&waypoints=${waypoints}`;
+            window.open(url, '_blank');
+        });
         document.getElementById('btn-clear-plan').addEventListener('click', () => {
             savePlan([]);
             clearPlanRoute();
