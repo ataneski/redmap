@@ -83,12 +83,65 @@
         .legend-item.disabled { opacity: 0.35; }
         .legend-item.disabled .legend-dot { border-color: #ccc; }
 
+        .popup-btns { display: flex; gap: 6px; margin-top: 8px; }
         .btn-directions {
-            display: block; width: 100%; margin-top: 8px; padding: 6px 10px;
+            flex: 1; padding: 6px 10px;
             background: #4285F4; color: #fff; border: none; border-radius: 4px;
             font-size: 12px; font-weight: bold; cursor: pointer; text-align: center;
         }
         .btn-directions:hover { background: #3367D6; }
+        .btn-plan {
+            flex: 1; padding: 6px 10px;
+            background: #f39c12; color: #fff; border: none; border-radius: 4px;
+            font-size: 12px; font-weight: bold; cursor: pointer; text-align: center;
+        }
+        .btn-plan:hover { background: #d68910; }
+        .btn-plan.in-plan { background: #e74c3c; }
+        .btn-plan.in-plan:hover { background: #c0392b; }
+
+        #plan-panel {
+            position: absolute; top: 55px; left: 10px; z-index: 1000;
+            background: white; border-radius: 8px; padding: 10px 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-family: Arial, sans-serif;
+            max-height: 50vh; overflow-y: auto; min-width: 220px; max-width: 280px;
+            display: none;
+        }
+        #plan-panel h4 {
+            margin: 0 0 6px; font-size: 13px; color: #333;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .plan-count { font-size: 11px; color: #888; font-weight: normal; }
+        .plan-item {
+            display: flex; align-items: center; gap: 6px; padding: 5px 4px;
+            border-radius: 4px; font-size: 12px;
+        }
+        .plan-item:hover { background: #f5f5f5; }
+        .plan-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .plan-num { font-weight: bold; color: #555; font-size: 11px; min-width: 16px; }
+        .plan-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .plan-remove {
+            background: none; border: none; color: #e74c3c; cursor: pointer;
+            font-size: 16px; font-weight: bold; padding: 0 4px; flex-shrink: 0;
+        }
+        .plan-remove:hover { color: #c0392b; }
+        .plan-actions { display: flex; gap: 6px; margin-top: 8px; }
+        .btn-optimize {
+            flex: 1; padding: 7px; background: #f39c12; color: #fff;
+            border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;
+        }
+        .btn-optimize:hover { background: #d68910; }
+        .btn-clear-plan {
+            padding: 7px 10px; background: #e74c3c; color: #fff;
+            border: none; border-radius: 4px; cursor: pointer; font-size: 12px;
+        }
+        .btn-clear-plan:hover { background: #c0392b; }
+        #plan-route-info { font-size: 11px; color: #555; margin-top: 6px; display: none; }
+
+        .stop-number-icon {
+            background: #f39c12; color: #fff; font-weight: bold; font-size: 13px;
+            width: 26px; height: 26px; border-radius: 50%; text-align: center;
+            line-height: 26px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
 
         #route-info {
             position: absolute; bottom: 30px; left: 10px; z-index: 1000;
@@ -175,6 +228,15 @@
     <div id="search-box">
         <input type="text" id="search" placeholder="Пребарувај по име или улица...">
         <div id="result-count"></div>
+    </div>
+    <div id="plan-panel">
+        <h4>План за посета <span class="plan-count" id="plan-count"></span></h4>
+        <div id="plan-items"></div>
+        <div class="plan-actions">
+            <button class="btn-optimize" id="btn-optimize">Оптимизирај рута</button>
+            <button class="btn-clear-plan" id="btn-clear-plan">X</button>
+        </div>
+        <div id="plan-route-info"></div>
     </div>
     <div id="route-info">
         <h4>Насоки / Directions</h4>
@@ -1374,6 +1436,136 @@
             return counts;
         }
 
+        // Visit plan storage
+        function getPlan() {
+            try { return JSON.parse(localStorage.getItem('skopje_plan') || '[]'); } catch(e) { return []; }
+        }
+        function savePlan(plan) { localStorage.setItem('skopje_plan', JSON.stringify(plan)); }
+        function isInPlan(id) { return getPlan().includes(id); }
+        function addToPlan(id) {
+            const plan = getPlan();
+            if (!plan.includes(id)) { plan.push(id); savePlan(plan); }
+            renderPlanPanel();
+            refreshMarkers();
+        }
+        function removeFromPlan(id) {
+            savePlan(getPlan().filter(x => x !== id));
+            renderPlanPanel();
+            refreshMarkers();
+        }
+        function togglePlan(id) {
+            if (isInPlan(id)) removeFromPlan(id); else addToPlan(id);
+        }
+
+        let planRouteLayer = null;
+        let planStopMarkers = [];
+
+        function clearPlanRoute() {
+            if (planRouteLayer) { map.removeLayer(planRouteLayer); planRouteLayer = null; }
+            planStopMarkers.forEach(m => map.removeLayer(m));
+            planStopMarkers = [];
+            document.getElementById('plan-route-info').style.display = 'none';
+        }
+
+        function renderPlanPanel() {
+            const plan = getPlan();
+            const panel = document.getElementById('plan-panel');
+            const itemsEl = document.getElementById('plan-items');
+            const countEl = document.getElementById('plan-count');
+
+            if (plan.length === 0) {
+                panel.style.display = 'none';
+                clearPlanRoute();
+                return;
+            }
+            panel.style.display = 'block';
+            countEl.textContent = `(${plan.length})`;
+
+            let html = '';
+            plan.forEach((id, i) => {
+                const loc = locations.find(l => l.id === id);
+                if (!loc) return;
+                const color = channelColors[loc.channel] || '#999';
+                html += `<div class="plan-item">
+                    <span class="plan-num">${i + 1}</span>
+                    <div class="plan-dot" style="background:${color}"></div>
+                    <span class="plan-name" title="${loc.name}">${loc.name}</span>
+                    <button class="plan-remove" onclick="removeFromPlan('${loc.id}')">&times;</button>
+                </div>`;
+            });
+            itemsEl.innerHTML = html;
+        }
+
+        function optimizePlanRoute() {
+            const plan = getPlan();
+            if (plan.length < 2) {
+                alert('Додај барем 2 локации во планот.');
+                return;
+            }
+
+            const planLocs = plan.map(id => locations.find(l => l.id === id)).filter(Boolean);
+            let coords = '';
+
+            // Start from user location if available
+            if (myLatLng) {
+                coords = `${myLatLng[1]},${myLatLng[0]};`;
+            }
+            coords += planLocs.map(l => `${l.lng},${l.lat}`).join(';');
+
+            const sourceParam = myLatLng ? '&source=first' : '';
+            const url = `https://router.project-osrm.org/trip/v1/driving/${coords}?overview=full&geometries=geojson&roundtrip=false${sourceParam}`;
+
+            document.getElementById('btn-optimize').textContent = '...';
+
+            fetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('btn-optimize').textContent = 'Оптимизирај рута';
+                    if (!data.trips || !data.trips.length) {
+                        alert('Не може да се најде рута.');
+                        return;
+                    }
+                    clearPlanRoute();
+
+                    const trip = data.trips[0];
+                    const routeCoords = trip.geometry.coordinates.map(c => [c[1], c[0]]);
+
+                    planRouteLayer = L.polyline(routeCoords, {
+                        color: '#f39c12', weight: 5, opacity: 0.8
+                    }).addTo(map);
+
+                    // Numbered stop markers from optimized order
+                    const waypoints = data.waypoints || [];
+                    const offset = myLatLng ? 1 : 0;
+                    waypoints.forEach((wp, i) => {
+                        if (myLatLng && i === 0) return; // skip user location
+                        const num = i - offset + 1;
+                        const marker = L.marker([wp.location[1], wp.location[0]], {
+                            icon: L.divIcon({
+                                className: 'stop-number-icon',
+                                html: `${num}`,
+                                iconSize: [26, 26],
+                                iconAnchor: [13, 13]
+                            }),
+                            zIndexOffset: 900
+                        }).addTo(map);
+                        planStopMarkers.push(marker);
+                    });
+
+                    map.fitBounds(planRouteLayer.getBounds().pad(0.1));
+
+                    const distKm = (trip.distance / 1000).toFixed(1);
+                    const durMin = Math.round(trip.duration / 60);
+                    const infoEl = document.getElementById('plan-route-info');
+                    infoEl.innerHTML = `<b>Растојание:</b> ${distKm} km | <b>Време:</b> ~${durMin} мин`;
+                    infoEl.style.display = 'block';
+                })
+                .catch(() => {
+                    document.getElementById('btn-optimize').textContent = 'Оптимизирај рута';
+                    alert('Грешка при оптимизација.');
+                });
+        }
+
         // Create colored pin markers using SVG
         function createPinIcon(color, visited) {
             const center = visited
@@ -1396,9 +1588,12 @@
         function createMarker(loc) {
             const color = channelColors[loc.channel] || "#999";
             const visited = isVisited(loc.id);
+            const inPlan = isInPlan(loc.id);
             const checkedAttr = visited ? 'checked' : '';
             const labelClass = visited ? 'visited-yes' : '';
             const labelText = visited ? 'Посетен!' : 'Посетен?';
+            const planBtnClass = inPlan ? 'btn-plan in-plan' : 'btn-plan';
+            const planBtnText = inPlan ? '- План' : '+ План';
             return L.marker([loc.lat, loc.lng], {
                 icon: createPinIcon(color, visited)
             }).bindPopup(`
@@ -1410,7 +1605,10 @@
                     <input type="checkbox" id="vis-${loc.id}" ${checkedAttr} onchange="toggleVisited('${loc.id}')">
                     <label for="vis-${loc.id}" class="${labelClass}">${labelText}</label>
                 </div>
-                <button class="btn-directions" onclick="getDirections(${loc.lat},${loc.lng},'${loc.name.replace(/'/g,"\\'")}','${loc.id}')">Насоки / Directions</button>
+                <div class="popup-btns">
+                    <button class="btn-directions" onclick="getDirections(${loc.lat},${loc.lng},'${loc.name.replace(/'/g,"\\'")}','${loc.id}')">Насоки</button>
+                    <button class="${planBtnClass}" onclick="togglePlan('${loc.id}')">&#9776; ${planBtnText}</button>
+                </div>
             `);
         }
 
@@ -1538,6 +1736,16 @@
         });
 
         updateQuotaProgress();
+
+        // Plan panel events
+        document.getElementById('btn-optimize').addEventListener('click', optimizePlanRoute);
+        document.getElementById('btn-clear-plan').addEventListener('click', () => {
+            savePlan([]);
+            clearPlanRoute();
+            renderPlanPanel();
+            refreshMarkers();
+        });
+        renderPlanPanel();
 
         // Legend collapse toggle
         document.getElementById('legend-toggle').addEventListener('click', () => {
