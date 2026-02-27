@@ -152,6 +152,13 @@
             display: flex; align-items: center; justify-content: space-between;
         }
         .plan-count { font-size: 11px; color: #888; font-weight: normal; }
+        .plan-item.visited-item { opacity: 0.5; text-decoration: line-through; }
+        .plan-visit-btn {
+            background: none; border: 1px solid #ccc; border-radius: 4px; cursor: pointer;
+            font-size: 14px; padding: 0 4px; flex-shrink: 0; line-height: 1.2;
+        }
+        .plan-visit-btn:hover { background: #f0fff4; border-color: #27ae60; }
+        .plan-visit-btn.done { background: #27ae60; color: #fff; border-color: #27ae60; }
         .plan-item {
             display: flex; align-items: center; gap: 6px; padding: 5px 4px;
             border-radius: 4px; font-size: 12px;
@@ -1539,6 +1546,13 @@
             }
         }
 
+        function planToggleVisited(id) {
+            setVisited(id, !isVisited(id));
+            updateQuotaProgress();
+            renderPlanPanel();
+            refreshMarkers();
+        }
+
         // Radius modal state
         let radiusCenter = null; // {lat, lng, name}
         let radiusKm = null;
@@ -1676,7 +1690,12 @@
                 const loc = locations.find(l => l.id === id);
                 if (!loc) return;
                 const color = channelColors[loc.channel] || '#999';
-                html += `<div class="plan-item">
+                const v = isVisited(loc.id);
+                const rowClass = v ? 'plan-item visited-item' : 'plan-item';
+                const btnClass = v ? 'plan-visit-btn done' : 'plan-visit-btn';
+                const btnIcon = v ? '&#10003;' : '&#9744;';
+                html += `<div class="${rowClass}">
+                    <button class="${btnClass}" onclick="planToggleVisited('${loc.id}')" title="Посетен">${btnIcon}</button>
                     <span class="plan-num">${i + 1}</span>
                     <div class="plan-dot" style="background:${color}"></div>
                     <span class="plan-name" title="${loc.name}">${loc.name}</span>
