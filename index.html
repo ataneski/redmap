@@ -1,0 +1,1636 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Skopje Locations Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        #map { height: 100vh; width: 100%; }
+        .leaflet-popup-content { font-size: 13px; line-height: 1.5; }
+        .popup-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+        .popup-row { color: #555; font-size: 12px; }
+        .popup-channel { display: inline-block; padding: 2px 8px; border-radius: 10px; color: #fff; font-size: 11px; font-weight: bold; margin-top: 4px; }
+
+        .legend-quota {
+            width: 45px; padding: 3px 4px; border: 1px solid #ccc; border-radius: 4px;
+            font-size: 12px; text-align: center; outline: none; flex-shrink: 0;
+        }
+        .legend-quota:focus { border-color: #4285F4; }
+        .legend-quota-saved { border-color: #27ae60; background: #f0fff4; }
+        #save-quotas {
+            width: 100%; margin-top: 8px; padding: 6px; background: #27ae60; color: #fff;
+            border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;
+        }
+        #save-quotas:hover { background: #219a52; }
+        #quota-status { font-size: 11px; color: #27ae60; text-align: center; margin-top: 4px; display: none; }
+
+        #legend {
+            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            background: white; border-radius: 8px; padding: 12px 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-family: Arial, sans-serif;
+            max-height: 90vh; overflow-y: auto; min-width: 200px;
+        }
+        #legend h3 { margin: 0 0 6px; font-size: 14px; color: #333; }
+        .legend-btns { display: flex; gap: 6px; margin-bottom: 8px; }
+        .legend-btns button {
+            flex: 1; padding: 4px 0; font-size: 11px; cursor: pointer;
+            border: 1px solid #ccc; border-radius: 4px; background: #f8f8f8;
+        }
+        .legend-btns button:hover { background: #e8e8e8; }
+        .legend-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 5px 4px; cursor: pointer; user-select: none; font-size: 13px;
+            border-radius: 4px;
+        }
+        .legend-item:hover { background: #f5f5f5; }
+        .legend-item input[type="checkbox"] {
+            width: 16px; height: 16px; cursor: pointer; accent-color: var(--ch-color);
+            flex-shrink: 0;
+        }
+        .legend-dot {
+            width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+            border: 2px solid rgba(0,0,0,0.2);
+        }
+        .legend-label { flex: 1; }
+        .legend-count { color: #999; font-size: 11px; }
+        .legend-item.disabled { opacity: 0.35; }
+        .legend-item.disabled .legend-dot { border-color: #ccc; }
+
+        .btn-directions {
+            display: block; width: 100%; margin-top: 8px; padding: 6px 10px;
+            background: #4285F4; color: #fff; border: none; border-radius: 4px;
+            font-size: 12px; font-weight: bold; cursor: pointer; text-align: center;
+        }
+        .btn-directions:hover { background: #3367D6; }
+
+        #route-info {
+            position: absolute; bottom: 30px; left: 10px; z-index: 1000;
+            background: white; border-radius: 8px; padding: 12px 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-family: Arial, sans-serif;
+            display: none; min-width: 200px;
+        }
+        #route-info h4 { margin: 0 0 6px; font-size: 14px; color: #333; }
+        #route-info .route-details { font-size: 13px; color: #555; line-height: 1.6; }
+        #route-info .route-dest { font-weight: bold; color: #222; margin-bottom: 4px; }
+        #btn-clear-route {
+            margin-top: 8px; padding: 5px 12px; background: #e74c3c; color: #fff;
+            border: none; border-radius: 4px; cursor: pointer; font-size: 12px; width: 100%;
+        }
+        #btn-clear-route:hover { background: #c0392b; }
+
+        .next-header { margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; font-size: 12px; font-weight: bold; color: #333; }
+        .next-item {
+            display: flex; align-items: center; gap: 8px; padding: 6px 4px;
+            border-radius: 4px; cursor: pointer; font-size: 12px; margin-top: 4px;
+        }
+        .next-item:hover { background: #f0f4ff; }
+        .next-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+        .next-name { flex: 1; font-weight: 600; color: #222; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+        .next-dist { color: #888; font-size: 11px; white-space: nowrap; }
+        .next-go {
+            padding: 3px 8px; background: #4285F4; color: #fff; border: none;
+            border-radius: 3px; cursor: pointer; font-size: 11px; flex-shrink: 0;
+        }
+        .next-go:hover { background: #3367D6; }
+
+        #search-box {
+            position: absolute; top: 10px; left: 55px; z-index: 1000;
+            background: white; border-radius: 8px; padding: 8px 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        }
+        #search-box input {
+            border: 1px solid #ddd; border-radius: 4px; padding: 6px 10px;
+            font-size: 13px; width: 250px; outline: none;
+        }
+        #search-box input:focus { border-color: #4A90D9; }
+        #result-count { font-size: 11px; color: #888; margin-top: 4px; }
+
+        #locate-btn {
+            position: absolute; bottom: 30px; right: 10px; z-index: 1000;
+            background: white; border: none; border-radius: 8px;
+            width: 44px; height: 44px; cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        #locate-btn:hover { background: #f0f0f0; }
+        #locate-btn svg { width: 22px; height: 22px; }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.5); opacity: 1; }
+            100% { transform: scale(3); opacity: 0; }
+        }
+        .my-location-icon {
+            width: 20px; height: 20px; position: relative;
+        }
+        .my-location-dot {
+            width: 14px; height: 14px; background: #4285F4; border: 3px solid #fff;
+            border-radius: 50%; position: absolute; top: 3px; left: 3px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+        }
+        .my-location-pulse {
+            width: 14px; height: 14px; background: rgba(66,133,244,0.3);
+            border-radius: 50%; position: absolute; top: 3px; left: 3px;
+            animation: pulse-ring 1.5s ease-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="search-box">
+        <input type="text" id="search" placeholder="Пребарувај по име или улица...">
+        <div id="result-count"></div>
+    </div>
+    <div id="route-info">
+        <h4>Насоки / Directions</h4>
+        <div class="route-dest" id="route-dest"></div>
+        <div class="route-details" id="route-details"></div>
+        <div id="next-nearest"></div>
+        <button id="btn-clear-route">Исчисти рута / Clear route</button>
+    </div>
+    <button id="locate-btn" title="My Location">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v3m0 14v3M2 12h3m14 0h3"/>
+            <circle cx="12" cy="12" r="8"/>
+        </svg>
+    </button>
+    <div id="legend">
+        <h3>Канал / Channel</h3>
+        <div class="legend-btns">
+            <button id="btn-all">Сите ON</button>
+            <button id="btn-none">Сите OFF</button>
+        </div>
+        <div id="legend-items"></div>
+        <button id="save-quotas">Зачувај квоти</button>
+        <div id="quota-status">Зачувано!</div>
+    </div>
+    <script>
+        const locations = [
+{id:"9500030555",name:"ТОТИ РЕСТОРАН",street:"/ 3А",lng:21.538577,lat:41.973940,channel:"Bar"},
+{id:"9500028300",name:"БАЊА СВЕТА НЕДЕЛА КАТЛАНОВО",street:"1 1",lng:21.693677,lat:41.895932,channel:"Bar"},
+{id:"9500035703",name:"ГОСТИЛНИЦА 19 КА ДООЕЛ СКОПЈЕ",street:"1 128Б",lng:21.514173,lat:42.026673,channel:"Bar"},
+{id:"9500027996",name:"ЕТНО СЕЛО ЗЛАТНО БУРЕ(КУЧКОВО)",street:"1 5",lng:21.324037,lat:42.059550,channel:"Bar"},
+{id:"9500030638",name:"ГОСТИЛНИЦА МИХАНА МИС",street:"1 50А",lng:21.618632,lat:41.936640,channel:"Bar"},
+{id:"9500022988",name:"КАЈ ЏЕК",street:"1 ПЕТРОВЕЦ 116",lng:21.617221,lat:41.938244,channel:"Bar"},
+{id:"9510000314",name:"ЛЕТНА ТЕРАСА-СТАР БОЕМ",street:"13 3A",lng:21.528006,lat:41.936453,channel:"Bar"},
+{id:"9500031139",name:"БАЛКАН РЕСТОРАН",street:"15-ТИ КОРПУС 2",lng:21.478195,lat:41.998845,channel:"Bar"},
+{id:"9500005104",name:"ДАРВИК",street:"18 20",lng:21.452393,lat:42.053846,channel:"Bar"},
+{id:"9500028646",name:"СКАЈ ВАЈБ 2021 ДООЕЛ",street:"2 11А ПОБОЖЈ",lng:21.401944,lat:42.094506,channel:"Bar"},
+{id:"9500030306",name:"ТРЕСКА БЕРЕНД",street:"2 38",lng:21.328621,lat:41.995852,channel:"Bar"},
+{id:"9510000571",name:"ЛЕТНА ТЕРАСА СВЕТА НЕДЕЛА",street:"A1 1",lng:21.675941,lat:41.893465,channel:"Bar"},
+{id:"9500029963",name:"МЕЗЕ БАР",street:"Bojmija​ 15",lng:21.448997,lat:41.989817,channel:"Bar"},
+{id:"9500032183",name:"КАФАНА ЈО-ТА (СОКАК)",street:"Bulevar ASNOM​ 188-ЛОК 1",lng:21.481110,lat:41.983453,channel:"Bar"},
+{id:"9500034166",name:"ЈОНИМИ ДООЕЛ",street:"Bulevar ASNOM​ 21",lng:21.464224,lat:41.991237,channel:"Bar"},
+{id:"9500026948",name:"ЛАМАС ПАЛАСЕ",street:"POKRIENA ČARŠIJA​",lng:21.439135,lat:42.002602,channel:"Bar"},
+{id:"9500027633",name:"КАЖИ МИ КАЖИ",street:"АНАСТАС МИТРЕВ 3Б",lng:21.446195,lat:41.987804,channel:"Bar"},
+{id:"9500023720",name:"СОБОМО",street:"Анкарска",lng:21.409140,lat:41.996276,channel:"Bar"},
+{id:"9500032724",name:"СИБЕЛЕС",street:"АНКАРСКА 12",lng:21.409388,lat:41.996334,channel:"Bar"},
+{id:"9500002285",name:"ЗОЕТРОПЕ",street:"Архиепископ Ангелариј",lng:21.435604,lat:41.999580,channel:"Bar"},
+{id:"9500022506",name:"ХАМЗА ЧАРШИЈА",street:"Битпазарска",lng:21.438471,lat:42.002139,channel:"Bar"},
+{id:"9500004976",name:"БРАТСТВО-АГОН ТП",street:"БИТПАЗАРСКА 90/1",lng:21.438440,lat:42.001988,channel:"Bar"},
+{id:"9500012139",name:"ГОСТИЛНИЦА САРАЕВО-ТП-МАЦА  СКОПЈЕ",street:"БИТПАЗАРСКА бр. 34",lng:21.439400,lat:42.002100,channel:"Bar"},
+{id:"9500031403",name:"ЧАРШИА СТЕАКХОУСЕ АНД РЕСТАУРАНТ",street:"БИТПАЗАРСКА БР.80",lng:21.438224,lat:42.001688,channel:"Bar"},
+{id:"9500034321",name:"ТИМ ЧЕ",street:"БЛАГОЈ ДАВКОВ 139/1-ЛОК3",lng:21.417097,lat:42.002747,channel:"Bar"},
+{id:"9500028080",name:"СОЊА ЈАЌИМОВСКА",street:"БЛАГОЈА СТЕФКОВСКИ 114Б",lng:21.505525,lat:41.993367,channel:"Bar"},
+{id:"9500022421",name:"КАФАНА МЕРАК",street:"БЛАГОЈА СТЕФКОВСКИ 1Б",lng:21.478998,lat:42.003331,channel:"Bar"},
+{id:"9500032682",name:"КАФАНА ГРАДИНА",street:"Борис Трајковски ББ",lng:21.472261,lat:41.964966,channel:"Bar"},
+{id:"9500006938",name:"ЛАВЧЕ КАЈ ЖУТИ",street:"Борка Талески",lng:21.419434,lat:41.997524,channel:"Bar"},
+{id:"9500034275",name:"МУРОВСКА МЕАНА",street:"БУЛЕВАР АЛЕКСАНДАР МАКЕДОНСКИ 2",lng:21.458163,lat:42.000779,channel:"Bar"},
+{id:"9500001098",name:"ГУРМАН",street:"Булевар Водњанска",lng:21.422295,lat:41.991691,channel:"Bar"},
+{id:"9500000998",name:"ГОСТИЛНИЦА ТРОКАДЕРО",street:"Булевар Јане Сандански",lng:21.459006,lat:41.989979,channel:"Bar"},
+{id:"9500002321",name:"НАЛЕЈ",street:"Булевар Јане Сандански",lng:21.467721,lat:41.983922,channel:"Bar"},
+{id:"9500002334",name:"ГАМА",street:"Булевар Јане Сандански",lng:21.465757,lat:41.985358,channel:"Bar"},
+{id:"9500035986",name:"ЛА ЛАРА",street:"Булевар Јане Сандански 66/1",lng:21.464813,lat:41.984747,channel:"Bar"},
+{id:"9500031220",name:"РЕСТОРАН ИВ",street:"Булевар Македонија 56",lng:21.437085,lat:41.986820,channel:"Bar"},
+{id:"9500001060",name:"ДОСИЕ СКОПЈЕ",street:"БУЛЕВАР МАКЕДОНИЈА БР.6Г",lng:21.436169,lat:41.987424,channel:"Bar"},
+{id:"9500022002",name:"БАБЕ БР.1 (ЛЕПТОКАРИЈА)",street:"Булевар Партизански одреди",lng:21.400127,lat:42.002952,channel:"Bar"},
+{id:"9500025776",name:"КОМПАНИЈА АЛДАКА ДОО",street:"Булевар Партизански одреди",lng:21.400405,lat:42.003111,channel:"Bar"},
+{id:"9500001141",name:"ДАРМА КАФАНА",street:"ВАРШАВСКА",lng:21.401897,lat:42.000337,channel:"Bar"},
+{id:"9500004050",name:"СКАРА БАР (ТАФТАЛИЏЕ)",street:"ВАРШАВСКА 70",lng:21.392295,lat:42.001644,channel:"Bar"},
+{id:"9500029408",name:"В ТРИ (НОВ)",street:"Васко Карангелевски 119А",lng:21.453352,lat:41.981400,channel:"Bar"},
+{id:"9500036393",name:"ДВА БРАТА",street:"ГОРНО ЛИСИЧЕ 23",lng:21.487272,lat:41.969484,channel:"Bar"},
+{id:"9510001055",name:"СИКРЕТ ЛЕЈДИС БАР",street:"ГРАДИШТЕ 4/лок2",lng:21.436098,lat:42.000104,channel:"Bar"},
+{id:"9500011677",name:"ГОСТИЛНИЦА НИКИ",street:"ДАНЕ КРАПЧЕВ 8",lng:21.417718,lat:42.001815,channel:"Bar"},
+{id:"9500024328",name:"БРАТСТВО 1",street:"ДЕБАРСКА 10",lng:21.437427,lat:42.001833,channel:"Bar"},
+{id:"9500002312",name:"АНТИЦА",street:"Дебарца",lng:21.419903,lat:42.001150,channel:"Bar"},
+{id:"9500007266",name:"ДЕНИЕЛ",street:"ДИМИТРИИЈА  ЧУПОСКИ  15",lng:21.516558,lat:41.938260,channel:"Bar"},
+{id:"9500022483",name:"БАРИК",street:"ЃОРЃИ ПЕШКОВ 5",lng:21.422486,lat:42.002105,channel:"Bar"},
+{id:"9500003977",name:"КАФАНА ШПАЈЗ",street:"ЃОРЃИ ПЕШКОВ БР. 10",lng:21.421995,lat:42.001592,channel:"Bar"},
+{id:"9500031442",name:"РУТИН РЕСТОРАН",street:"ЃОРЃИ ПОПХРИСТОВ 4 ЛАМ.2",lng:21.434747,lat:42.015769,channel:"Bar"},
+{id:"9500024941",name:"ГОСТИЛНИЦА ЈУГ (ВЛАЕ)",street:"ЕСПЕРАНТО",lng:21.372290,lat:42.006718,channel:"Bar"},
+{id:"9500036338",name:"РЕСТОРАН АМАНЕТ",street:"Железничка 2",lng:21.431288,lat:41.988312,channel:"Bar"},
+{id:"9500022481",name:"СКОПСКИ МЕРАК",street:"Живко Чинго",lng:21.420050,lat:42.000995,channel:"Bar"},
+{id:"9500024717",name:"ДЕКСИОН КО",street:"ЖИВКО ЧИНКО 5",lng:21.420120,lat:42.000886,channel:"Bar"},
+{id:"9500023527",name:"БРАТСКИ МЕРАК ЧЕШМА",street:"Иван Козаров",lng:21.438689,lat:41.984064,channel:"Bar"},
+{id:"9500027870",name:"ДИ-ЛЕ-АН 26 ДООЕЛ СКОПЈЕ",street:"ИВАН ХАЏИНИКОЛОВ 12",lng:21.518097,lat:41.937596,channel:"Bar"},
+{id:"9500001026",name:"РЕСТОРАН ДОЈРАНА",street:"Интернационални бригади",lng:21.460102,lat:41.997814,channel:"Bar"},
+{id:"9500032266",name:"РЕСТОРАН АКТИВА",street:"ЈАДРАНСКА МАГИСТРАЛА ББ",lng:21.390138,lat:42.043993,channel:"Bar"},
+{id:"9500032177",name:"РЕСТОРАН ТЕ-ФА-ФА 3 (ВИЗБЕГОВО)",street:"ЈАДРАНСКА МАГИСТРАЛА БР.131",lng:21.398926,lat:42.035595,channel:"Bar"},
+{id:"9500024579",name:"МАЛЕШЕВСКИ МЕРАК",street:"Јане Сандански",lng:21.465044,lat:41.984788,channel:"Bar"},
+{id:"9500027969",name:"ГРИЛ ХАУС",street:"Јане Сандански",lng:21.465105,lat:41.986774,channel:"Bar"},
+{id:"9500034322",name:"ГАЛАМА",street:"ЈАНИ ЛУКРОВСКИ 56/ЛОКАЛ 9",lng:21.464331,lat:42.003356,channel:"Bar"},
+{id:"9500001149",name:"КАНЦОНА (КОЗЛЕ)",street:"Јуриј Гагарин",lng:21.398761,lat:41.995418,channel:"Bar"},
+{id:"9500032186",name:"ЛОЗНИЦА",street:"Јуриј Гагарин 51",lng:21.409962,lat:41.995421,channel:"Bar"},
+{id:"9500017030",name:"ЧАШКА КАФАНА (КОЗЛЕ)",street:"ЈУРИЈ ГАРГАРИН",lng:21.398481,lat:41.995384,channel:"Bar"},
+{id:"9500034488",name:"КАПРИ",street:"КАЧАНИЧКИ ПАТ ББ",lng:21.394717,lat:42.039941,channel:"Bar"},
+{id:"9500023038",name:"КАРПЕ ДИЕМ",street:"КЕЈ 13-ТИ НОЕМВРИ",lng:21.435446,lat:41.995460,channel:"Bar"},
+{id:"9500001111",name:"ЛЕЗЕТ",street:"КРУШЕВСКА РЕПУБЛИКА (ПРОЛЕТ)",lng:21.442769,lat:41.992364,channel:"Bar"},
+{id:"9500024777",name:"КАЈ ЗЛАТЕ ПРОЛЕТ",street:"Крушевска Република (Пролет)",lng:21.439535,lat:41.989542,channel:"Bar"},
+{id:"9500023324",name:"КАМИН КАМА",street:"ЛУКА ГЕРОВ 1",lng:21.359765,lat:42.011864,channel:"Bar"},
+{id:"9500033737",name:"ГОСТИЛНИЦА КАЈ ЦРНИ",street:"ЛУКА ГЕРОВ 50-3/1",lng:21.352636,lat:42.020607,channel:"Bar"},
+{id:"9500005216",name:"МЕТИ РАП",street:"Методија Андонов Ченто",lng:21.510477,lat:42.011940,channel:"Bar"},
+{id:"9500028362",name:"ИНЕС ФИКС",street:"МЕТОДИЈА АНДОНОВ ЧЕНТО 19",lng:21.511362,lat:42.011856,channel:"Bar"},
+{id:"9500035746",name:"ТРН",street:"МИРОСЛАВ КРЛЕЖА 63",lng:21.421625,lat:42.000635,channel:"Bar"},
+{id:"9500001113",name:"КАЛАБАЛАК",street:"Мирче Ацев",lng:21.440419,lat:41.990126,channel:"Bar"},
+{id:"9500035327",name:"КОМПАНИЈА ДУКОВСКИ",street:"Митре Влаот 11",lng:21.472920,lat:41.974759,channel:"Bar"},
+{id:"9500004997",name:"ЗЛАТНА РИПКА",street:"Митрополит Теодосиј Гологанов",lng:21.416549,lat:41.994450,channel:"Bar"},
+{id:"9500006920",name:"КА ПРИМО",street:"МИТРОПОЛИТ ТЕОДОСИЈ ГОЛОГАНОВ",lng:21.422143,lat:41.995025,channel:"Bar"},
+{id:"9500012388",name:"ДУКАТ",street:"МИТРОПОЛИТ ТЕОДОСИЈ ГОЛОГАНОВ",lng:21.412971,lat:41.994972,channel:"Bar"},
+{id:"9500028370",name:"ДВОР",street:"МИТРОПОЛИТ ТЕОДОСИЈ ГОЛОГАНОВ 67",lng:21.413853,lat:41.994737,channel:"Bar"},
+{id:"9500036210",name:"ЕФТИНИЈА МЕТАЛ РЕСТОРАН (ВИЗБЕГОВО)",street:"Момин Поток 80",lng:21.389266,lat:42.044064,channel:"Bar"},
+{id:"9500028195",name:"ВЕНИЦЕ ФОНТАНА",street:"НЕВЕНА ГЕОРГИЕВА ДУЊА",lng:21.437006,lat:41.986494,channel:"Bar"},
+{id:"9500011401",name:"ДОБРА СРЕДБА",street:"Неџип Драга",lng:21.433482,lat:42.022960,channel:"Bar"},
+{id:"9500026200",name:"КАЈ СЛОНЧЕ (СИТИ МОЛ)",street:"НИКОЛА РУСИНСКИ 15",lng:21.393757,lat:42.004211,channel:"Bar"},
+{id:"9500031500",name:"СИДРО 2",street:"НИКОЛА РУСИНСКИ 21",lng:21.394716,lat:42.004610,channel:"Bar"},
+{id:"9500022708",name:"ГОСТИЛНИЦА ЛИРА",street:"НИКОЛА ТЕСЛА 11",lng:21.410896,lat:42.005946,channel:"Bar"},
+{id:"9500006950",name:"СЕНДВИЧАРА ТОТО",street:"НИКОЛА ТРИМПАРЕ 7",lng:21.422799,lat:41.996810,channel:"Bar"},
+{id:"9500001154",name:"СИДРО",street:"Њуделхиска",lng:21.405591,lat:41.997710,channel:"Bar"},
+{id:"9500031303",name:"СКАДАРЛИЈА НОВА",street:"Орце Николов 1",lng:21.414711,lat:42.004600,channel:"Bar"},
+{id:"9500031228",name:"ГОСТИЛНИЦА НАЏАК",street:"ОРЦЕ НИКОЛОВ 105",lng:21.421438,lat:42.001523,channel:"Bar"},
+{id:"9500004014",name:"СТАРА КУЌА",street:"ПАЈКО МААЛО 14",lng:21.438396,lat:41.996932,channel:"Bar"},
+{id:"9500005239",name:"СОФРА",street:"ПАРИСКА КОМУНА  ББ",lng:21.507777,lat:41.993210,channel:"Bar"},
+{id:"9500036613",name:"ДЕДО ЦАНЕ",street:"ПАРТЕНИЈ ЗОГРАФСКИ 34",lng:21.419463,lat:41.986821,channel:"Bar"},
+{id:"9500000282",name:"МАЛ АЛТАН",street:"Плоштад Карпошово востание",lng:21.434682,lat:41.998724,channel:"Bar"},
+{id:"9500012165",name:"КОСМОС ТП  АЛИЈА МУШЕ",street:"Покриена Чаршија",lng:21.438283,lat:42.002552,channel:"Bar"},
+{id:"9500001114",name:"ДОМИНИ Р",street:"ПРОЛЕТ",lng:21.441022,lat:41.991052,channel:"Bar"},
+{id:"9500036567",name:"НАШАТА КАФАНА",street:"Сава Ковачевиќ 13А",lng:21.457184,lat:41.971717,channel:"Bar"},
+{id:"9500030896",name:"ХОРЕКС-ПЧЕЛА",street:"Салих Асим 22",lng:21.436999,lat:41.999886,channel:"Bar"},
+{id:"9500011621",name:"АВРИКОМ",street:"СИМЕОН КАВРАКИРОВ 9",lng:21.446600,lat:41.989374,channel:"Bar"},
+{id:"9500017237",name:"ОДИСЕЈА",street:"ТОДОР ЧАНГОВ",lng:21.486841,lat:41.984337,channel:"Bar"},
+{id:"9500007321",name:"ИНТЕР ОИЛ",street:"УЛ. 34 С.ИЛИНДЕН ББ",lng:21.543274,lat:41.994358,channel:"Bar"},
+{id:"9500002237",name:"ОАЗА",street:"УЛ. 5 САРАЈ ШИШЕВО 4 Б",lng:21.310914,lat:41.979757,channel:"Bar"},
+{id:"9500009100",name:"БУЦО ЌЕБАПЧИЛНИЦА",street:"УЛ. 9 С. ИЛИНДЕН 1",lng:21.570454,lat:41.995996,channel:"Bar"},
+{id:"9500009109",name:"РЕСТОРАН ДОМА",street:"УЛ. 9 С. ИЛИНДЕН 24",lng:21.574859,lat:41.994554,channel:"Bar"},
+{id:"9500030881",name:"КОД ЖУЈА",street:"УЛ.1 БАТИНЦИ 86",lng:21.493109,lat:41.930859,channel:"Bar"},
+{id:"9500031488",name:"ПЛАНИНСКИ БИСЕР ( РАДИШАНИ)",street:"УЛ.18 ББ",lng:21.450926,lat:42.052564,channel:"Bar"},
+{id:"9510000956",name:"ГОСТИЛНИЦА КАЈ ЛЕО",street:"УЛИЦА 1 184",lng:21.612817,lat:41.940152,channel:"Bar"},
+{id:"9500005164",name:"ОМЕР КОМПАНИ",street:"Улица 2",lng:21.331115,lat:42.003826,channel:"Bar"},
+{id:"9500007176",name:"ВЕЛИ ИВ",street:"ФИНСКА 2",lng:21.504965,lat:42.004361,channel:"Bar"},
+{id:"9500029507",name:"БИФЕ ЧЕЛИК",street:"ФРАНКЛИН РУЗВЕЛТ 2",lng:21.411757,lat:41.993648,channel:"Bar"},
+{id:"9500001128",name:"ФОТКА",street:"Хелсинки",lng:21.399301,lat:42.001912,channel:"Bar"},
+{id:"9500027104",name:"СКАРА БАР ФРАТЕЛЛАНЗА ДОО СКОПЈЕ",street:"Христо Татарчев",lng:21.444616,lat:41.975526,channel:"Bar"},
+{id:"9500033595",name:"КЕИФ",street:"ХРИСТО ТАТАРЧЕВ 47Т",lng:21.444126,lat:41.976994,channel:"Bar"},
+{id:"9500000269",name:"АРИСТОКРАТ КАФЕ",street:"ЈАНИ ЛУКРОВСКИ 5",lng:21.464862,lat:42.002645,channel:"Cafe"},
+{id:"9500000293",name:"ПАЛАДИУМ",street:"Булевар Партизански одреди",lng:21.415608,lat:42.000342,channel:"Cafe"},
+{id:"9500000298",name:"БЕЛИЕР КАФЕ",street:"29-ти Ноември",lng:21.417150,lat:41.998463,channel:"Cafe"},
+{id:"9500000314",name:"ПЛЕЈ КАФЕ СИТИ МОЛ",street:"Љубљанска",lng:21.392262,lat:42.003849,channel:"Cafe"},
+{id:"9500000831",name:"С МАРКЕТ АРАЧИНОВО РЕСТОРАН",street:"Методија Андонов Ченто",lng:21.517215,lat:42.013521,channel:"Cafe"},
+{id:"9500001012",name:"ЧАЈЏИЛНИЦА СЕДЛАРЕВО",street:"Булевар Цветан Димов",lng:21.443105,lat:42.008637,channel:"Cafe"},
+{id:"9500001019",name:"КАФЕ ЛЕ ПЕТИТ",street:"ТРИФУН ХАЏИ ЈАНЕВ",lng:21.461433,lat:42.002774,channel:"Cafe"},
+{id:"9500001034",name:"КВАТРО КАФЕ",street:"ДЕБАРСКА",lng:21.446498,lat:41.973453,channel:"Cafe"},
+{id:"9500001038",name:"КРУГ",street:"Јане Сандански",lng:21.465198,lat:41.983982,channel:"Cafe"},
+{id:"9500001045",name:"КАФЕ ФИЛМ",street:"БУЛЕВАР ВИДОЕ СМИЛЕВСКИ БАТО",lng:21.471784,lat:41.980851,channel:"Cafe"},
+{id:"9500001066",name:"СЛАТКАРНИЦА ШАРЛОТА",street:"БУЛЕВАР АЛЕКСАНДАР МАКЕДОНСКИ",lng:21.492084,lat:42.001860,channel:"Cafe"},
+{id:"9500001089",name:"ПЛЕЈ КАФЕ",street:"Македонија",lng:21.429938,lat:41.992480,channel:"Cafe"},
+{id:"9500001105",name:"ИЗЗИ КАФЕ (ЗЕБРА)",street:"Васил Ѓоргов",lng:21.418725,lat:41.992761,channel:"Cafe"},
+{id:"9500001116",name:"КОРЗО",street:"ДАМЕ ГРУЕВ 5",lng:21.429146,lat:41.992628,channel:"Cafe"},
+{id:"9500001155",name:"КАЗА",street:"МИРОСЛАВ КРЛЕЖА",lng:21.421716,lat:42.001352,channel:"Cafe"},
+{id:"9500002244",name:"БАЈ ПАС",street:"Булевар Партизански одреди",lng:21.368648,lat:42.008320,channel:"Cafe"},
+{id:"9500002284",name:"ТЕ ФЛАДИ КАФЕ",street:"ЏОН КЕНЕДИ 9Б",lng:21.437931,lat:42.013158,channel:"Cafe"},
+{id:"9500002290",name:"ОХРИД",street:"БИТПАЗАРСКА",lng:21.437361,lat:42.000361,channel:"Cafe"},
+{id:"9500002335",name:"ЛОНГ ПЛЕЈ",street:"БУЛЕВАР ЈАНЕ САНДАНСКИ",lng:21.465889,lat:41.984711,channel:"Cafe"},
+{id:"9500004041",name:"БАДУ КАФЕ (ВЛАЕ)",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ",lng:21.372367,lat:42.007103,channel:"Cafe"},
+{id:"9500004999",name:"РАНДЕВУ",street:"Булевар Водњанска",lng:21.422297,lat:41.991375,channel:"Cafe"},
+{id:"9500005028",name:"МАМБО",street:"БУЛЕВАР АСНОМ 118",lng:21.475757,lat:41.989017,channel:"Cafe"},
+{id:"9500005042",name:"ГАРСОН",street:"Димитрие Чуповски",lng:21.427397,lat:41.995422,channel:"Cafe"},
+{id:"9500005043",name:"МИСТЕР ЏЕК",street:"ПАЛЕТА",lng:21.427025,lat:41.996502,channel:"Cafe"},
+{id:"9500005097",name:"ПРЕМИЕР КАФЕ",street:"Приштинска",lng:21.447884,lat:42.038656,channel:"Cafe"},
+{id:"9500006854",name:"ДАВИДО",street:"Булевар Јане Сандански",lng:21.465661,lat:41.985014,channel:"Cafe"},
+{id:"9500006940",name:"КИНО КАРПОШ",street:"Благој Давков",lng:21.417098,lat:42.001044,channel:"Cafe"},
+{id:"9500006941",name:"ВЕСПА КАФЕ",street:"9-ТИ МАЈ",lng:21.415156,lat:41.996063,channel:"Cafe"},
+{id:"9500007003",name:"ЛАЈК",street:"БУЛ. КУЗМАН ЈОСИФОВСКИ ПИТУ",lng:21.449350,lat:41.988895,channel:"Cafe"},
+{id:"9500011803",name:"БИО АРД  ГОРАН И ДР. ДОО АПОСТОЛОВС",street:"КОЦЕ МЕТАЛЕЦ",lng:21.461100,lat:42.010600,channel:"Cafe"},
+{id:"9500011836",name:"ЏЕКИ КОМПАНИ ЕКСПОРТ-ИМПОРТ ДООЕЛ",street:"Самарџиска",lng:21.438892,lat:42.002889,channel:"Cafe"},
+{id:"9500012202",name:"КАФЕ БАР СИНДИКАТ СКОПЈЕ",street:"ОРЦЕ НИКОЛОВ",lng:21.422542,lat:42.001501,channel:"Cafe"},
+{id:"9500016689",name:"ИМИЏ",street:"БУЛЕВАР ЈАНЕ САНДАНСКИ",lng:21.463530,lat:41.986695,channel:"Cafe"},
+{id:"9500017358",name:"АКАДЕМИ КАФЕ",street:"Булевар Водњанска",lng:21.422416,lat:41.991479,channel:"Cafe"},
+{id:"9500017863",name:"ЏЕЗА ДООЕЛ",street:"2   235",lng:21.533962,lat:41.920000,channel:"Cafe"},
+{id:"9500018287",name:"ЛИ КАФЕ",street:"Атинска",lng:21.409703,lat:41.997161,channel:"Cafe"},
+{id:"9500018297",name:"РАДИОБАР КАФЕ",street:"Пиринска",lng:21.423568,lat:42.000124,channel:"Cafe"},
+{id:"9500018302",name:"ПРЕМИУМ КЛУБ",street:"Булевар 8-ми Септември",lng:21.405256,lat:42.008376,channel:"Cafe"},
+{id:"9500021612",name:"КРУГ КАФЕ",street:"НАУМ НАУМОВСКИ БОРЧЕ 79",lng:21.423095,lat:41.999962,channel:"Cafe"},
+{id:"9500022158",name:"БАСС КАФЕ",street:"Христо Татарчев",lng:21.445638,lat:41.973442,channel:"Cafe"},
+{id:"9500022205",name:"ВЕНЕРА",street:"ВАСИЛ ГЛАВИНОВ 3",lng:21.427823,lat:41.996045,channel:"Cafe"},
+{id:"9500022309",name:"АРАСТА КАФЕ",street:"ПУШКАРСКА 33",lng:21.437054,lat:42.002161,channel:"Cafe"},
+{id:"9500022347",name:"КОФИ ФЕКТОРИ",street:"Ленинова",lng:21.423405,lat:41.999293,channel:"Cafe"},
+{id:"9500022424",name:"КАФЕ БЛОК",street:"Булевар Кузман Јосифовски Питу",lng:21.451186,lat:41.987538,channel:"Cafe"},
+{id:"9500022459",name:"КАФЕ БАР ЧЕ",street:"29-ти Ноември",lng:21.417222,lat:41.999109,channel:"Cafe"},
+{id:"9500022465",name:"БАР ЕВОЛУШН",street:"БУЛЕВАР ИЛИНДЕН 80",lng:21.461090,lat:41.998191,channel:"Cafe"},
+{id:"9500022841",name:"АЛЕКСАНДАР СКВЕР",street:"НИКОЛА ВАПЦАРОВ 13А",lng:21.429694,lat:41.995049,channel:"Cafe"},
+{id:"9500022899",name:"АСТРА КАФЕ",street:"ВЛАДИМИР КОМАРОВ",lng:21.452634,lat:41.988403,channel:"Cafe"},
+{id:"9500022916",name:"КАФЕТЕРИЈА СКВЕР ДОО",street:"МАКЕДОНИЈА 27",lng:21.430845,lat:41.995096,channel:"Cafe"},
+{id:"9500023048",name:"БИС ЛАУНЏ БАР",street:"БУЛЕВАР ИЛИНДЕН",lng:21.402301,lat:42.006897,channel:"Cafe"},
+{id:"9500023415",name:"ТАКО-МАКО",street:"Салих Асим",lng:21.436482,lat:42.000588,channel:"Cafe"},
+{id:"9500023473",name:"НЕАР",street:"Неџип Драга",lng:21.435718,lat:42.024376,channel:"Cafe"},
+{id:"9500023493",name:"КОФИ ХАУС - БАБУБЕ",street:"Булевар Гоце Делчев",lng:21.437900,lat:42.000366,channel:"Cafe"},
+{id:"9500023584",name:"ДРИНКЕРС ПАРАДАЈС КОКТЕЛ БАР",street:"Булевар Партизански одреди",lng:21.425615,lat:41.997766,channel:"Cafe"},
+{id:"9500023717",name:"ФОР ФИНГЕРС",street:"Народен Фронт",lng:21.414198,lat:41.994627,channel:"Cafe"},
+{id:"9500023814",name:"ЛОКАЛ КАФЕ",street:"Пиринска",lng:21.423828,lat:41.999812,channel:"Cafe"},
+{id:"9500023869",name:"ИМПЕРИУМ",street:"Васил Ѓоргов",lng:21.421107,lat:41.992621,channel:"Cafe"},
+{id:"9500023957",name:"СВОЛОУ БАР",street:"Митрополит Теодосиј Гологанов",lng:21.417177,lat:41.994741,channel:"Cafe"},
+{id:"9500023998",name:"МОЦАРТ КАПИШТЕЦ",street:"НАРОДЕН ФРОНТ 23",lng:21.416285,lat:41.993680,channel:"Cafe"},
+{id:"9500024522",name:"КАКТУС БАР",street:"БУЛЕВАР ЈАНЕ САНДАНСКИ",lng:21.465542,lat:41.984891,channel:"Cafe"},
+{id:"9500024683",name:"ДЕУС КАФЕ",street:"АНТОНИЕ ГРУБИШИЌ",lng:21.424294,lat:42.000336,channel:"Cafe"},
+{id:"9500024770",name:"КАФЕ САМО ДООЕЛ",street:"ОРЦЕ НИКОЛОВ 75",lng:21.425592,lat:42.000316,channel:"Cafe"},
+{id:"9500024803",name:"КАФЕ КАПРИ",street:"Бахар Моис",lng:21.406766,lat:41.997574,channel:"Cafe"},
+{id:"9500024973",name:"ЛА КАСТАЊА",street:"ЈУЖНОМОРАВСКИ БРИГАДИ 10",lng:21.502285,lat:42.007100,channel:"Cafe"},
+{id:"9500024994",name:"КОФИ ФЕКТОРИ ТРИ",street:"Македонија",lng:21.430773,lat:41.993991,channel:"Cafe"},
+{id:"9500025057",name:"К8 КАФЕ БАР",street:"ГРАДИШТЕ 9",lng:21.436204,lat:42.000260,channel:"Cafe"},
+{id:"9500025062",name:"ПОИНТ КАФЕ",street:"МАРИОВСКА 3 20-1/10",lng:21.444388,lat:41.976864,channel:"Cafe"},
+{id:"9500025106",name:"СЕРАНИ САРАЈ",street:"A211",lng:21.313397,lat:41.987829,channel:"Cafe"},
+{id:"9500025117",name:"КАФЕ МОРНИНГ",street:"Руди Чајавец",lng:21.452638,lat:41.986866,channel:"Cafe"},
+{id:"9500025202",name:"КОТУР КАФЕ И ФИЛМ",street:"Димитрие Чуповски",lng:21.429447,lat:41.994487,channel:"Cafe"},
+{id:"9500025525",name:"ШЕМА КАФЕ РАДИШАНИ",street:"РАДИШАНСКА БР.21-2/22",lng:21.450281,lat:42.060210,channel:"Cafe"},
+{id:"9500025598",name:"БРИК ИТ",street:"Велосипедска патека Кеј",lng:21.427055,lat:42.006686,channel:"Cafe"},
+{id:"9500025934",name:"БАЛУН КАФЕ",street:"ХРИСТО ТАТАРЧЕВ",lng:21.440509,lat:41.980841,channel:"Cafe"},
+{id:"9500026039",name:"МАКСИГМА АЛУМИНКА",street:"Никола Русински",lng:21.395251,lat:42.003932,channel:"Cafe"},
+{id:"9500026195",name:"ЏОИ УЛ.МАКЕДОНИЈА",street:"МАКЕДОНИЈА ББ",lng:21.430110,lat:41.992827,channel:"Cafe"},
+{id:"9500026252",name:"ХЕЛИУМ КАФЕ",street:"Булевар Видое Смилевски Бато",lng:21.476174,lat:41.981204,channel:"Cafe"},
+{id:"9500026320",name:"КАФЕ БАР ИВ",street:"Ленинова",lng:21.422250,lat:41.996351,channel:"Cafe"},
+{id:"9500026514",name:"БРЕЈК ТАЈМ",street:"Фрањо Клуз",lng:21.451427,lat:41.985675,channel:"Cafe"},
+{id:"9500026815",name:"КАФЕ ЧИНО",street:"Bulevar Fevruarski pohod​",lng:21.481004,lat:41.981042,channel:"Cafe"},
+{id:"9500026859",name:"БРИСТОТ КОФИ ШОП",street:"29-ти Ноември",lng:21.418640,lat:42.001544,channel:"Cafe"},
+{id:"9500026905",name:"ПОРТ КАФЕ",street:"Митре Влаот",lng:21.471852,lat:41.974584,channel:"Cafe"},
+{id:"9500026997",name:"БРОЗ КАФЕ НОВА",street:"Булевар Партизански одреди",lng:21.416818,lat:42.000061,channel:"Cafe"},
+{id:"9500027090",name:"БЛЕК 313",street:"Булевар Партизански одреди",lng:21.414852,lat:42.000469,channel:"Cafe"},
+{id:"9500027106",name:"ЛУКС КАФЕ",street:"Македонија",lng:21.430384,lat:41.993911,channel:"Cafe"},
+{id:"9500027234",name:"ЛИТЕРАТУРА (СИТИ МОЛ)",street:"ЉУБЉАНСКА 4",lng:21.390830,lat:42.004148,channel:"Cafe"},
+{id:"9500027248",name:"СТОРИ",street:"Матеја Матевски",lng:21.456889,lat:41.981146,channel:"Cafe"},
+{id:"9500027252",name:"ЕСПРЕССО ХАУС",street:"УЛ. БУЛЕВАР ЈАНЕ САНДАНСКИ 82",lng:21.465616,lat:41.984869,channel:"Cafe"},
+{id:"9500027430",name:"СТАРТ КАФЕ",street:"Даме Груев",lng:21.427727,lat:41.994265,channel:"Cafe"},
+{id:"9500027431",name:"ЦЕНТРАЛ ПАРК КАФЕ",street:"МИЛАДИН ПОПОВИЌ",lng:21.416387,lat:42.009748,channel:"Cafe"},
+{id:"9500027499",name:"ШЕКСПИР КАФЕ",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ",lng:21.423714,lat:41.998330,channel:"Cafe"},
+{id:"9500027664",name:"ХИЛЛ ЛОУНГЕ БАР",street:"Методија Андонов Ченто",lng:21.508634,lat:42.010061,channel:"Cafe"},
+{id:"9500027729",name:"МОЦАРТ АМСМ",street:"МИТРОПОЛИТ ТЕОДОСИЈ ГОЛОГАНОВ 7",lng:21.423382,lat:41.994898,channel:"Cafe"},
+{id:"9500027813",name:"ХОШ",street:"БИТПАЗАРСКА 18",lng:21.437645,lat:42.000906,channel:"Cafe"},
+{id:"9500028061",name:"УНИК ЛОУНГЕ БАР ДООЕЛ",street:"Финска",lng:21.508787,lat:42.009569,channel:"Cafe"},
+{id:"9500028396",name:"КАЛА БЕЛА",street:"НИКОЛА ВАПЦАРОВ 8",lng:21.429157,lat:41.995110,channel:"Cafe"},
+{id:"9500028439",name:"ЛЕАФ КАФЕ",street:"ВЕЛОСИПЕДСКА ПАТЕКА КЕЈ 36",lng:21.407299,lat:42.011360,channel:"Cafe"},
+{id:"9500028572",name:"САНИ САЈД (ВЛАЕ)",street:"БОТУН 26а",lng:21.369900,lat:42.007590,channel:"Cafe"},
+{id:"9500028592",name:"ДОЛАП КАФЕ",street:"ВАСИЛ ЃОРГОВ 18",lng:21.421486,lat:41.992476,channel:"Cafe"},
+{id:"9500028654",name:"КОКО ДАСТ",street:"БРАНКО ЗАРЕВСКИ 9-Б",lng:21.516907,lat:41.938201,channel:"Cafe"},
+{id:"9500028665",name:"ПАСТЕР",street:"Даме Груев 4",lng:21.428742,lat:41.993313,channel:"Cafe"},
+{id:"9500028776",name:"ЦЕНТРАЛ ПЕРК (ТАФТАЛИЏЕ)",street:"МЕТРОПОЛИТ ТЕОДОСИЈ ГОЛОГАНОВ 96",lng:21.398038,lat:41.997731,channel:"Cafe"},
+{id:"9500028797",name:"МАККА",street:"БУЛ СВЕТИ КЛИМЕНТ ОХРИДСКИ 60",lng:21.424815,lat:41.996421,channel:"Cafe"},
+{id:"9500029178",name:"КАРМА КАФЕ",street:"БУЛ. ЈАНЕ САНДАНСКИ 9-1/7",lng:21.460954,lat:41.989115,channel:"Cafe"},
+{id:"9500029220",name:"ИЛАРИТАДЕЈ ДООЕЛ",street:"205 13",lng:21.541060,lat:41.972136,channel:"Cafe"},
+{id:"9500029224",name:"Д ХАТ",street:"ДИМЧЕ МИРЧЕВ 4",lng:21.427901,lat:41.988366,channel:"Cafe"},
+{id:"9500029353",name:"СПИРИТ",street:"Руди Чајавец 2/2-35",lng:21.452569,lat:41.987648,channel:"Cafe"},
+{id:"9500029386",name:"ФЕДИ ГРОУП",street:"Пиринска 32-1/1",lng:21.727306,lat:42.132696,channel:"Cafe"},
+{id:"9500029394",name:"ЛАФЕ КАФЕ",street:"Булевар Свети Климент Ох 66/3 ПРИЗЕ",lng:21.424835,lat:41.995021,channel:"Cafe"},
+{id:"9500029434",name:"ТЕНИС КАФЕ ПОИНТЕР",street:"БУЛЕВАР АСНОМ 1",lng:21.465499,lat:41.993931,channel:"Cafe"},
+{id:"9500029531",name:"ЛИТЕРАТУРА (ИСТ ГЕЈТ)",street:"БЕЛАСИЦА 2",lng:21.450900,lat:41.997183,channel:"Cafe"},
+{id:"9500029627",name:"ЛА МЕР",street:"Васил Иљоски 20",lng:21.429665,lat:41.997579,channel:"Cafe"},
+{id:"9500029972",name:"СНУЗ КАФЕ",street:"Владимир Комаров 18-А",lng:21.452923,lat:41.988369,channel:"Cafe"},
+{id:"9500030026",name:"МДМ ИНВЕСТ ГРУП",street:"ТОДОР ЧАНГОВ 27/26",lng:21.484022,lat:41.982315,channel:"Cafe"},
+{id:"9500030069",name:"ХЕПИ КАФЕ (НОВО)",street:"Владимир Комаров 27/4",lng:21.453211,lat:41.988453,channel:"Cafe"},
+{id:"9500030158",name:"ВАЈ КАФЕ (ТАФТАЛИЏЕ)",street:"МИТРОПОЛИТ ТЕОДОСИЈ ГОЛО 134/1 БР.1",lng:21.392795,lat:41.998092,channel:"Cafe"},
+{id:"9500030296",name:"МААЛСКИ БАР (ТАФТАЛИЏЕ)",street:"БУКУРЕШКА 407",lng:21.395114,lat:42.000227,channel:"Cafe"},
+{id:"9500030352",name:"ПАРИЗ СТАЈКОВЦИ",street:"2 11",lng:21.513547,lat:42.027624,channel:"Cafe"},
+{id:"9500030373",name:"ТРАЧ БАР",street:"БУЛ. КУЗМАН ЈОСИФОВСКИ-ПИТУ 24-9",lng:21.447997,lat:41.989547,channel:"Cafe"},
+{id:"9500030527",name:"СТЕРНА САШЕ 2",street:"Васил Ѓоргов 19/ЛОК56",lng:21.416515,lat:41.993194,channel:"Cafe"},
+{id:"9500030537",name:"БУФ БАР",street:"Кеј 13-ти Ноември 12ГТЦ-001",lng:21.435837,lat:41.994686,channel:"Cafe"},
+{id:"9500030562",name:"МИНТ КАФЕ БАР",street:"Дебарска 47-В",lng:21.445067,lat:41.974148,channel:"Cafe"},
+{id:"9500030563",name:"КАЛДРМА КАФЕ",street:"Мирослав Крлежа 4",lng:21.421495,lat:42.001871,channel:"Cafe"},
+{id:"9500030628",name:"КАФЕ ДИ БЈАНКОНЕРИ",street:"ДИМИТРИЕ ЧУПОВСКИ 31/6",lng:21.425429,lat:41.995208,channel:"Cafe"},
+{id:"9500030752",name:"А Л - ГАМЕ ЛАНД",street:"МАКЕДОНСКО-КОСОВСКА БРИГАДА 67",lng:21.428452,lat:42.024943,channel:"Cafe"},
+{id:"9500030813",name:"СПОРТ-ЛАИФ ГЕЈМИНГ БР.18",street:"ГЛИГОР ЧЕМЕРСКИ 15А/ЛОК 3",lng:21.415021,lat:42.000593,channel:"Cafe"},
+{id:"9500030838",name:"КИДО ЛЕНД",street:"АРХИЕПИСКОП ДОСИТЕЈ 8/2-1",lng:21.370589,lat:42.010712,channel:"Cafe"},
+{id:"9500030867",name:"КОРЗО КАФЕ",street:"ЃОРЧЕ ПЕТРОВ 22А",lng:21.362971,lat:42.007273,channel:"Cafe"},
+{id:"9500030879",name:"РИСТРЕТТО",street:"КОЗАРА 68",lng:21.415112,lat:41.992381,channel:"Cafe"},
+{id:"9500031005",name:"РЕЛАКС-НИКА АРАЧИНОВО",street:"1 144",lng:21.563686,lat:42.026871,channel:"Cafe"},
+{id:"9500031150",name:"МОИА",street:"8. Септември 5",lng:21.403788,lat:42.009076,channel:"Cafe"},
+{id:"9500031157",name:"КЛОЕ КАФЕ",street:"ОРЦЕ НИКОЛОВ 93",lng:21.422780,lat:42.001462,channel:"Cafe"},
+{id:"9500031229",name:"МУНЛАЈТ КАФЕ",street:"АНКАРСКА 23 ЛОК 2",lng:21.408560,lat:41.996907,channel:"Cafe"},
+{id:"9500031296",name:"КЛУБ ПРИВАТЕ",street:"ПИРИНСКА 45",lng:21.423733,lat:41.999923,channel:"Cafe"},
+{id:"9500031451",name:"ПАНАМЕ",street:"НИКОЛА ТРИМПАРЕ 61 И 62",lng:21.422290,lat:41.996782,channel:"Cafe"},
+{id:"9500032134",name:"ПРИМ КАФЕ",street:"Џон Кенеди 8",lng:21.438664,lat:42.013256,channel:"Cafe"},
+{id:"9500032194",name:"ЛЕЈЗИ КАФЕ",street:"БУЛЕВАР ЈАНЕ САНДАНСКИ 74-1",lng:21.464240,lat:41.983899,channel:"Cafe"},
+{id:"9500032214",name:"ЛОКМАДЕС",street:"АРХИЕПИСКОП АНГЕЛАРИЈ 3",lng:21.435652,lat:41.999604,channel:"Cafe"},
+{id:"9500032280",name:"АВЕ КАФЕ ДООЕЛ СКОПЈЕ",street:"АНТОН ПОПОВ 1",lng:21.432842,lat:41.987917,channel:"Cafe"},
+{id:"9500032293",name:"КОНЦЕПТ",street:"ФРАНКЛИН РУЗВЕЛТ 37",lng:21.412756,lat:41.999393,channel:"Cafe"},
+{id:"9500032377",name:"КОД 2023",street:"7 Јули 40",lng:21.436161,lat:42.009016,channel:"Cafe"},
+{id:"9500032411",name:"АЛБИОН",street:"O2059 7Б",lng:21.443560,lat:42.022254,channel:"Cafe"},
+{id:"9500032430",name:"КРИТОРАМА",street:"Мирослав Крлежа 38/1-1",lng:21.423030,lat:41.998958,channel:"Cafe"},
+{id:"9500032435",name:"АРОСТО КАФЕ ДООЕЛ",street:"КОСТА НОВАКОВИЌ БР.17/ЛОК1",lng:21.454944,lat:41.983468,channel:"Cafe"},
+{id:"9500032601",name:"БЛООМ КАФЕ",street:"БУЛ. ПАРТИЗАНСКИ ОДРЕДИ 119",lng:21.387893,lat:42.003708,channel:"Cafe"},
+{id:"9500032604",name:"СТАР КАФЕ",street:"МИТРОПОЛИТ ТЕОДОСИЈ ГОЛОГАНОВ 44",lng:21.418643,lat:41.994677,channel:"Cafe"},
+{id:"9500032731",name:"САМАН",street:"Борка Талевски 1/1",lng:21.409840,lat:41.997606,channel:"Cafe"},
+{id:"9500032785",name:"ХОРИЗОНТ ДИД ДОО УВОЗ-ИЗВОЗ СКОПЈЕ",street:"БУЛЕВАР КИРО ГЛИГОРОВ 25-8",lng:21.474081,lat:41.993463,channel:"Cafe"},
+{id:"9500032851",name:"ПАБЛО КАФЕ",street:"Булевар 8-ми Септември 8 2/6",lng:21.404626,lat:41.999046,channel:"Cafe"},
+{id:"9500033290",name:"КАБИНЕТОРГ ДООЕЛ",street:"БУЛЕВАР ЈАНЕ САНДАНСКИ 7",lng:21.459470,lat:41.989741,channel:"Cafe"},
+{id:"9500033320",name:"ГНЕЗДО",street:"Лондонска 113 А",lng:21.391541,lat:42.003369,channel:"Cafe"},
+{id:"9500033484",name:"ШКОЛСКИ",street:"ЛУКА ГЕРОВ 49",lng:21.352143,lat:42.020797,channel:"Cafe"},
+{id:"9500033485",name:"РЕВОЛУШН КЛУБ",street:"R1206 91",lng:21.324446,lat:41.996866,channel:"Cafe"},
+{id:"9500033496",name:"ЕЛОВО КУЛУ КАФЕ",street:"УЛ. СВ.КИРИЛ И МЕТОДИЈ 23",lng:21.426661,lat:41.992217,channel:"Cafe"},
+{id:"9500033509",name:"БАРФЛАЈ",street:"ОРЦЕ НИКОЛОВ 83 А",lng:21.424525,lat:42.000546,channel:"Cafe"},
+{id:"9500033539",name:"ЕДНО МЕСТО",street:"БУЛ.ЈАНЕ САНДАНСКИ 11 ЗГР.1-1",lng:21.460790,lat:41.989594,channel:"Cafe"},
+{id:"9500033571",name:"ЌОШЕ КАФЕ (ЛЕПТОКАРИЈА)",street:"УЛ. БУЛ. ПАРТИЗАНСКИ ОДРЕДИ 66Б",lng:21.397662,lat:42.003314,channel:"Cafe"},
+{id:"9500033622",name:"КАФУЧИНО",street:"ЖАН ЖОРЕС 202",lng:21.514445,lat:41.995746,channel:"Cafe"},
+{id:"9500033623",name:"КАФЕ БАР СТУДИО 54",street:"МАКЕДОНИЈА 29",lng:21.430232,lat:41.993492,channel:"Cafe"},
+{id:"9500033651",name:"БРОНСОН КЛУБ",street:"СВ. КИРИЛ И МЕТОДИЈ 56- 10",lng:21.421857,lat:41.994016,channel:"Cafe"},
+{id:"9500033660",name:"КЛИК",street:"КАЗАНЏИСКА 26",lng:21.436857,lat:41.999538,channel:"Cafe"},
+{id:"9500033684",name:"КУЛТУРА 160",street:"ОРЦЕ НИКОЛОВ 160-1",lng:21.415080,lat:42.004430,channel:"Cafe"},
+{id:"9500033695",name:"КАФЕ БАР ЛОБИ",street:"ОРЦЕ НИКОЛОВ 133",lng:21.418451,lat:42.002942,channel:"Cafe"},
+{id:"9500033727",name:"БРИСКЕТ КАФЕ (ЛЕПТОКАРИЈА)",street:"Булевар Партизански одреди 11Б",lng:21.398259,lat:42.003475,channel:"Cafe"},
+{id:"9500033745",name:"КАФЕ НОРТ ДООЕЛ",street:"Адем Демачи ББ",lng:21.437101,lat:42.021831,channel:"Cafe"},
+{id:"9500034012",name:"СТАНИЦА ПАРК",street:"УЛ. ЃОРЧЕ ПЕТРОВ 21",lng:21.363762,lat:42.007258,channel:"Cafe"},
+{id:"9500034015",name:"ЗАЈОН ГРУП ДОО",street:"Владимир Комаров 81/2-16",lng:21.453224,lat:41.988979,channel:"Cafe"},
+{id:"9500034042",name:"МОН ФРЕРЕ",street:"Ќурчиска 97",lng:21.436340,lat:42.001771,channel:"Cafe"},
+{id:"9500034173",name:"КАФЕТЕРИЈА ВЛЕЗ",street:"Стив Наумов 8/ЛОКАЛ 4",lng:21.435234,lat:41.992440,channel:"Cafe"},
+{id:"9500034303",name:"АКАДЕМИЈА КАФЕ",street:"ГЕОРГИ ДИМИТРОВ 16-1/2",lng:21.438984,lat:41.979039,channel:"Cafe"},
+{id:"9500034328",name:"КОПИ-ПЕРО",street:"Фрањо Клуз 115",lng:21.451660,lat:41.984460,channel:"Cafe"},
+{id:"9500034481",name:"ХАРТ",street:"НАУМ НАУМОВСКИ-БОРЧЕ 50-1/1",lng:21.424569,lat:41.998689,channel:"Cafe"},
+{id:"9500034744",name:"ЛИТЕРАТУРА (ДИАМОНД МОЛ)",street:"КИРИЛ И МЕТОДИЈ 9",lng:21.429995,lat:41.990618,channel:"Cafe"},
+{id:"9500034773",name:"МГ БАР",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 101-1/3",lng:21.397604,lat:42.002493,channel:"Cafe"},
+{id:"9500035024",name:"САНШАЈН НОВ",street:"Благој Попов 10А-1",lng:21.474467,lat:41.980606,channel:"Cafe"},
+{id:"9500035026",name:"БИЗНИС КАФЕ",street:"4-ти Јули 24/1 ЛОК.7",lng:21.360822,lat:42.009587,channel:"Cafe"},
+{id:"9500035066",name:"НОКС СТАР",street:"Булевар Кузман Јосифовски Питу БР.1",lng:21.441044,lat:41.992920,channel:"Cafe"},
+{id:"9500035149",name:"БУНДА РЕКОРДС",street:"БУЛ. ПАРТИЗАНСКИ ОДРЕДИ 66А",lng:21.397191,lat:42.003598,channel:"Cafe"},
+{id:"9500035159",name:"БАБИЛОН",street:"Булевар Србија 1/4",lng:21.467238,lat:41.980084,channel:"Cafe"},
+{id:"9500035177",name:"БУКС & ДОГС",street:"Булевар Јане Сандански 7 ЛОК 17",lng:21.459322,lat:41.989933,channel:"Cafe"},
+{id:"9500035248",name:"СОНЧОГЛЕД БАР",street:"29 НОЕМВРИ 42/1-13",lng:21.417132,lat:41.997228,channel:"Cafe"},
+{id:"9500035323",name:"САБ 091",street:"МАКЕДОНИЈА 21",lng:21.430538,lat:41.994287,channel:"Cafe"},
+{id:"9500035337",name:"ЛИТЛ БАР",street:"ЕСПЕРАНТО ББ",lng:21.368374,lat:42.006968,channel:"Cafe"},
+{id:"9500035405",name:"ЖАПОН",street:"ФРАНКЛИН РУЗВЕЛТ 63А",lng:21.415150,lat:42.003986,channel:"Cafe"},
+{id:"9500035432",name:"ФЕНИКС МАРИНО",street:"534 21",lng:21.586044,lat:41.990088,channel:"Cafe"},
+{id:"9500035459",name:"УРБАН БУРГЕР ЕАСТ ГЕЈТ",street:"БЕЛАСИЦА 2",lng:21.452424,lat:41.997980,channel:"Cafe"},
+{id:"9500035538",name:"ДРАМСКИ БАР",street:"ШЕКСПИРОВА 15",lng:21.407649,lat:42.002340,channel:"Cafe"},
+{id:"9500035579",name:"ЛОРЕНС КАФЕ ДООЕЛ СКОПЈЕ",street:"Дебарска 18",lng:21.445253,lat:41.973535,channel:"Cafe"},
+{id:"9500035729",name:"СТУДИО СЕДУМДЕСЕТ",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 27А",lng:21.420742,lat:41.998714,channel:"Cafe"},
+{id:"9500035819",name:"ФЕЛА КАФЕ",street:"МИХАИЛ ЦОКОВ 6",lng:21.421908,lat:42.002460,channel:"Cafe"},
+{id:"9500035883",name:"АУТОСТАР СКОПЈЕ",street:"СТОЈКА ЦЕКОВА 2",lng:21.475969,lat:41.992056,channel:"Cafe"},
+{id:"9500035890",name:"КАФЕ ТЕРАСКОКА",street:"БЕЛАСИЦА Б2-2",lng:21.454901,lat:41.998105,channel:"Cafe"},
+{id:"9500035914",name:"РУТИНА",street:"НИКОЛА РУСИНСКИ 1/3-5",lng:21.398422,lat:42.003765,channel:"Cafe"},
+{id:"9500035939",name:"ЛАНЧ БАР СОБРАНИЕ",street:"ДАМЕ ГРУЕВ 3",lng:21.432459,lat:41.991932,channel:"Cafe"},
+{id:"9500035945",name:"БОХО БАР",street:"ОРЦЕ НИКОЛОВ 6А",lng:21.418109,lat:42.002893,channel:"Cafe"},
+{id:"9500035975",name:"МБЕЦ",street:"СЛАВКО ЈАНЕВСКИ 102",lng:21.436863,lat:41.989797,channel:"Cafe"},
+{id:"9500036020",name:"КТЦ БАР",street:"НАРОДЕН ФРОНТ 045",lng:21.416384,lat:41.993786,channel:"Cafe"},
+{id:"9500036197",name:"БАР ДВАЕСЕТ И ТРИ",street:"Булевар Јане Сандански 12-1/3",lng:21.454767,lat:41.988222,channel:"Cafe"},
+{id:"9500036243",name:"АУСТРИАН ПАЛАС",street:"АРХИЕПИСКОП АНГЕЛАРИЈ 24",lng:21.435667,lat:41.999596,channel:"Cafe"},
+{id:"9500036244",name:"ФЕЈС ТО ФЕЈС",street:"Кавтанџиска БР.61",lng:21.437069,lat:42.001782,channel:"Cafe"},
+{id:"9500036304",name:"НО ДЕПРЕССО",street:"Булевар Партизански одреди 64 В",lng:21.399008,lat:42.003110,channel:"Cafe"},
+{id:"9500036334",name:"КАФЕ БАР ГРАВИТИ",street:"R1106 68",lng:21.532334,lat:41.954742,channel:"Cafe"},
+{id:"9500036434",name:"ХРИСЕЛ КАФЕ",street:"Улица 6 22А",lng:21.513550,lat:42.027623,channel:"Cafe"},
+{id:"9500036592",name:"МАНДМ ДОО",street:"Булевар Партизански одре 7/1-ЛОКАЛ6",lng:21.418517,lat:41.999633,channel:"Cafe"},
+{id:"9500036614",name:"МАНДА КАФЕ",street:"8-ма Ударна бригада ББ",lng:21.428423,lat:41.997071,channel:"Cafe"},
+{id:"9510000385",name:"САЛУД БИСТРО",street:"Мехмет Паша Дерала 42",lng:20.975558,lat:42.003899,channel:"Cafe"},
+{id:"9510000463",name:"АТЕЉЕ",street:"Илеш Шпиц 33-лок7",lng:21.407093,lat:41.989263,channel:"Cafe"},
+{id:"9510000558",name:"ХОТЕЛ МИРОР БАЗЕНТ",street:"Улица 11",lng:21.620095,lat:41.938680,channel:"Cafe"},
+{id:"9510000747",name:"УНО КАФЕ",street:"УЛИЦА ЦВЕТАН ДИМОВ 72",lng:21.442906,lat:42.007656,channel:"Cafe"},
+{id:"9510000760",name:"ПУФУ ЛАНЏ БАР",street:"УЛИЦА КРЕСНА 25А",lng:21.472233,lat:41.975040,channel:"Cafe"},
+{id:"9510000898",name:"М ХОУСЕ ДАЈМОНД",street:"УЛИЦА СВЕТИ КИРИЛ И МЕТОДИЈ 3",lng:21.426127,lat:41.992672,channel:"Cafe"},
+{id:"9510000964",name:"Кофи Хаус",street:"Стив Наумов бр.2/лок30",lng:21.436809,lat:41.989969,channel:"Cafe"},
+{id:"9510000968",name:"ЧАО",street:"KEJ 13-TI NOEMVRI 2",lng:21.448757,lat:41.994268,channel:"Cafe"},
+{id:"9500000263",name:"СПОРТСКИ ЦЕНТАР ИНДИРЕКТ",street:"ЏОН КЕНЕДИ ББ",lng:21.443925,lat:42.013977,channel:"FSR"},
+{id:"9500000279",name:"РЕСТОРАН БИГ ФИШ",street:"Булевар Јане Сандански",lng:21.459706,lat:41.989620,channel:"FSR"},
+{id:"9500001007",name:"РЕСТОРАН ГЕТ ЛАУНЏ БАР",street:"ВЛАДИМИР КОМАРОВ 1А",lng:21.449598,lat:41.992119,channel:"FSR"},
+{id:"9500001016",name:"РЕСТОРАН КАЗАБЛАНКА",street:"Лазар Личеноски",lng:21.428530,lat:42.006780,channel:"FSR"},
+{id:"9500001035",name:"ГЕТ КАФЕ",street:"ДЕБАРСКА",lng:21.444832,lat:41.972851,channel:"FSR"},
+{id:"9500001099",name:"ПИЦЕРИЈА 511",street:"Козара",lng:21.416220,lat:41.992320,channel:"FSR"},
+{id:"9500001129",name:"ОРЕОВ ЛАД",street:"УЛИЦА 1",lng:21.332299,lat:42.003212,channel:"FSR"},
+{id:"9500001135",name:"МАК ТЕНИС ПРО",street:"Варшавска",lng:21.402306,lat:41.999712,channel:"FSR"},
+{id:"9500001136",name:"ЕВРО СЕТ",street:"СКУПИ",lng:21.397761,lat:42.015685,channel:"FSR"},
+{id:"9500002232",name:"АЛЕКСАНДАР ПАЛАС ХОТЕЛ",street:"Велосипедска патека Кеј",lng:21.405875,lat:42.011245,channel:"FSR"},
+{id:"9500002260",name:"РЕСТОРАН БОТИ",street:"Боца Иванова",lng:21.435833,lat:42.032478,channel:"FSR"},
+{id:"9500002279",name:"ПИЦЕРИЈА БОНИМИ (АВТОКОМАНДА)",street:"ТРИФУН ХАЏИ ЈАНЕВ 8-3",lng:21.462036,lat:42.003089,channel:"FSR"},
+{id:"9500002350",name:"НАЦИОНАЛ",street:"Стив Наумов",lng:21.435068,lat:41.993292,channel:"FSR"},
+{id:"9500003997",name:"ЛА ТЕРАЦА",street:"11-ти Октомври",lng:21.431905,lat:41.995169,channel:"FSR"},
+{id:"9500004052",name:"ОЛИВЕС",street:"Париска",lng:21.401454,lat:42.001408,channel:"FSR"},
+{id:"9500004966",name:"АМИГОС УЛ. МАКЕДОНИЈА",street:"ПЛОШТАД ВМРО",lng:21.430177,lat:41.993674,channel:"FSR"},
+{id:"9500004971",name:"ТРЕНД",street:"Васил Иљоски",lng:21.430725,lat:41.995995,channel:"FSR"},
+{id:"9500006944",name:"УРАНИЈА ПАРК",street:"Столтенбергова",lng:21.422292,lat:42.006370,channel:"FSR"},
+{id:"9500006961",name:"СУШИКО",street:"Ленинова",lng:21.423658,lat:41.999563,channel:"FSR"},
+{id:"9500006963",name:"БРУКЛИНСКИ",street:"ОРЦЕ НИКОЛОВ 75",lng:21.425265,lat:42.000290,channel:"FSR"},
+{id:"9500009049",name:"БАЛИЛА (КАПИШТЕЦ)",street:"Козара",lng:21.416527,lat:41.992270,channel:"FSR"},
+{id:"9500011609",name:"СЕНЕГАЛИА",street:"КЕЈ 13ТИ НОЕМВРИ ББ",lng:21.434637,lat:41.995871,channel:"FSR"},
+{id:"9500012630",name:"ПЕЛИСТЕР",street:"11-ти Октомври",lng:21.431699,lat:41.995591,channel:"FSR"},
+{id:"9500012674",name:"ДВА ЕЛЕНА",street:"Загрепска",lng:21.408081,lat:41.993184,channel:"FSR"},
+{id:"9500016392",name:"ЛА ГОНДОЛА ВЛАДИМИР МАРКОВСКИ",street:"ДИМИТРИЈА ЧУПОСКИББ",lng:21.517117,lat:41.938092,channel:"FSR"},
+{id:"9500016420",name:"МИКЕИ ХАНТИНГ КЛУБ",street:"Булевар Александар Македонски",lng:21.487294,lat:42.007568,channel:"FSR"},
+{id:"9500021918",name:"ФОРЦА",street:"Митрополит Теодосиј Гологанов",lng:21.390898,lat:41.999768,channel:"FSR"},
+{id:"9500022776",name:"ХОТЕЛ ГРАНД М ДООЕЛ - МЕРИОТ",street:"Васил Иљоски",lng:21.430260,lat:41.996199,channel:"FSR"},
+{id:"9500022861",name:"КАНТИНА",street:"Радњанска",lng:21.419217,lat:42.000563,channel:"FSR"},
+{id:"9500023135",name:"ЈАВНА СОБА",street:"50-ТА ДИВИЗИЈА 22",lng:21.426245,lat:41.989821,channel:"FSR"},
+{id:"9500023531",name:"ШКУПИ",street:"Булевар Гоце Делчев",lng:21.438632,lat:41.999428,channel:"FSR"},
+{id:"9500023646",name:"ФИШ",street:"ЕЛИСИЕ ПОПОВСКИ МАРКО 59",lng:21.414191,lat:41.990585,channel:"FSR"},
+{id:"9500023922",name:"ЕУРОИТАЛИА",street:"1 105",lng:21.615604,lat:41.939175,channel:"FSR"},
+{id:"9500024648",name:"ХОТЕЛ МИРОР",street:"УЛ. 6 БР. 7 ПЕТРОВЕЦ",lng:21.619631,lat:41.939047,channel:"FSR"},
+{id:"9500024826",name:"САЧ",street:"Битпазарска",lng:21.437321,lat:42.000244,channel:"FSR"},
+{id:"9500024867",name:"РЕСТОРАН РЕКА",street:"УЛ.1 БР.1 ПАТИШКА РЕКА",lng:21.318054,lat:41.799600,channel:"FSR"},
+{id:"9500025330",name:"БАРЕЛ КАФЕ",street:"Њуделхиска",lng:21.406156,lat:41.997034,channel:"FSR"},
+{id:"9500025749",name:"ХИЛТОН ХОТЕЛ",street:"БУЛЕВАР АСНОМ 17",lng:21.473099,lat:41.990372,channel:"FSR"},
+{id:"9500025754",name:"ЕКС.ЕВРИ ДЕЈ ДОО",street:"Бојмија",lng:21.452186,lat:41.991660,channel:"FSR"},
+{id:"9500026213",name:"МАЛА СТАНИЦА",street:"50-та Дивизија",lng:21.424981,lat:41.990751,channel:"FSR"},
+{id:"9500026300",name:"ЛИЗИЛО",street:"Јани Лукровски",lng:21.464640,lat:42.003306,channel:"FSR"},
+{id:"9500026498",name:"ГБФ ГРОУП",street:"МАКЕДОНСКО-КОСОВСКА БРИГАДА",lng:21.429766,lat:42.024306,channel:"FSR"},
+{id:"9500026622",name:"ЧАЧА 1986",street:"МАКЕДОНСКО КОСОВСКА БРИГАДА 11 67",lng:21.429648,lat:42.024765,channel:"FSR"},
+{id:"9500026659",name:"ЕНО БАР",street:"БУЛЕВАР ИЛИНДЕН 160 2 9",lng:21.394268,lat:42.008158,channel:"FSR"},
+{id:"9500026695",name:"КОСТАРИКА НОВА",street:"НАУМ НАУМОВСКИ -БОРЧЕ 86",lng:21.423869,lat:42.002897,channel:"FSR"},
+{id:"9500026970",name:"ВОДЕНИЦА МУЛИНО",street:"Народен Фронт",lng:21.413531,lat:41.994828,channel:"FSR"},
+{id:"9500027491",name:"КАФЕ ЉАЧИ ЧАРШИЈА",street:"Градиште",lng:21.436608,lat:42.000388,channel:"FSR"},
+{id:"9500027602",name:"КРЕМИСИМО ТРИБИНА",street:"Улица 1640",lng:21.523275,lat:41.993178,channel:"FSR"},
+{id:"9500027619",name:"БАЛКАНИКА",street:"ВЕЛОСИПЕДСКА ПАТЕКА КЕЈ 24",lng:21.409697,lat:42.009619,channel:"FSR"},
+{id:"9500027708",name:"ФРЕШ БУРГЕР 2020",street:"МЕТОДИЈА АНДОНОВ-ЧЕНТО 165",lng:21.511110,lat:42.011755,channel:"FSR"},
+{id:"9500027735",name:"ХУРРЕМ КАФЕ",street:"КАЗАНЏИСКА 21",lng:21.435903,lat:41.999372,channel:"FSR"},
+{id:"9500027889",name:"МИ КАСА ОРИЕНТ",street:"САМОИЛОВА 83",lng:21.433105,lat:42.003222,channel:"FSR"},
+{id:"9500028485",name:"СРЕЌА Е",street:"ВАСКО КАРАНГЕЛЕВСКИ 60",lng:21.455484,lat:41.980988,channel:"FSR"},
+{id:"9500028591",name:"МАГИЧНА КУЌА",street:"БОЖИДАР АЏИЈА 12А-1/ЛОК2",lng:21.439041,lat:41.980633,channel:"FSR"},
+{id:"9500028729",name:"БИСТРО КОМЕДИЈА",street:"БУЛЕВАР СВЕТИ КЛИМЕНТ ОХРИДСКИ 31",lng:21.425449,lat:41.994531,channel:"FSR"},
+{id:"9500028745",name:"ДИОН (АЕРОДРОМ)",street:"3. МАКЕДОНСКА БРИГАДА 39-1/1",lng:21.456103,lat:41.981440,channel:"FSR"},
+{id:"9500029022",name:"ПИЦА ФЕКТОРИ",street:"БУЛЕВАР ВИДОЕ СМИЛЕВСКИ БАТО 3-2/2",lng:21.472503,lat:41.982398,channel:"FSR"},
+{id:"9500029042",name:"ТРАТОРИА НАПОЛИ",street:"УЛ. НИКОЛА ТРИМПАРЕ 33/ ЛОК 1",lng:21.423776,lat:41.996950,channel:"FSR"},
+{id:"9500029340",name:"ДИОН ГТЦ",street:"КЕЈ 13 НОЕМВРИ 1",lng:21.433078,lat:41.995985,channel:"FSR"},
+{id:"9500029395",name:"ИНКОГНИТО МОШ",street:"УЛ. БУЛЕВАР ИЛИНДЕН 9 А",lng:21.413890,lat:42.006946,channel:"FSR"},
+{id:"9500029441",name:"СОМА КАФЕ БАР (ТАФТАЛИЏЕ)",street:"Прашка 96-1/ЛОК.5",lng:21.398413,lat:41.998106,channel:"FSR"},
+{id:"9500029525",name:"САРАЈЕВА СТЕК ХАУС",street:"БЕЛАСИЦА 2",lng:21.450841,lat:41.997142,channel:"FSR"},
+{id:"9500029951",name:"ТРИБЕКА (МЕГАТОН КО-ПРОДУКЦИЈА)",street:"БУЛЕВАР ИЛИНДЕН 104",lng:21.411292,lat:42.007234,channel:"FSR"},
+{id:"9500030042",name:"ЉУБОВНА КУЌИЧКА (АЕРОДРОМ)",street:"БУЛ. КУЗМАН ЈОСИФОВСКИ- ПИТУ 30-1",lng:21.450771,lat:41.987629,channel:"FSR"},
+{id:"9500030212",name:"КАЧАМАКУ",street:"Градиште 4",lng:21.435941,lat:42.000146,channel:"FSR"},
+{id:"9500030295",name:"ОСЕЛОТ БЕ ЕН (ТАФТАЛИЏЕ)",street:"ПРАШКА 11-1/2",lng:21.398939,lat:41.998375,channel:"FSR"},
+{id:"9500030298",name:"МОНДАНО СПОРТ",street:"Св. Кирил и Методиј 25",lng:21.426412,lat:41.993501,channel:"FSR"},
+{id:"9500030344",name:"ДВАЕСЕТ И ДВА",street:"МАРИОВСКА 1",lng:21.437428,lat:41.973481,channel:"FSR"},
+{id:"9500030544",name:"ЛАНЧ БАР АЈС КАФЕ",street:"23 18Б",lng:21.583158,lat:41.989071,channel:"FSR"},
+{id:"9500030554",name:"ФЕС ЛАНЧ КАФЕ",street:"АЛПИ 14",lng:21.429802,lat:42.014583,channel:"FSR"},
+{id:"9500030605",name:"ПИЦА БАР МТС",street:"ХРИСТО ТАТАРЧЕВ 15\2-1",lng:21.444650,lat:41.976963,channel:"FSR"},
+{id:"9500031117",name:"РЕСТОРАН АМБАСАДА",street:"Улица-4 82А",lng:21.456411,lat:41.972805,channel:"FSR"},
+{id:"9500031120",name:"ЛАУНЏ БАР АВИАТОР",street:"Руди Чајавец 1/ЗГРАДА 1",lng:21.451735,lat:41.987260,channel:"FSR"},
+{id:"9500031156",name:"ПИЦЕРИЈА КОКО ДРАЧЕВО",street:"РУМЕНА ХАЏИ-ПАНЗОВА 45",lng:21.513583,lat:41.940179,channel:"FSR"},
+{id:"9500031213",name:"РЕСТОРАН КАЈ ЏИНО",street:"11-ti Oktomvri​ 1",lng:21.434079,lat:41.994555,channel:"FSR"},
+{id:"9500031302",name:"ХИБ ПЕТРОЛ РЕСТОРАН",street:"КАЧАНИЧКИ ПАТ ББ",lng:21.396277,lat:42.039001,channel:"FSR"},
+{id:"9500031363",name:"МАРТИНИ ЛЕПТОКАРИЈА НОВА",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 1/1/7",lng:21.399682,lat:42.003135,channel:"FSR"},
+{id:"9500031379",name:"ГИГО ПИЦЕРИЈА (ВЛАЕ)",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ No 151",lng:21.370979,lat:42.007635,channel:"FSR"},
+{id:"9500031380",name:"ЈАВОР МРЗЕНЦИ",street:"Драган Спиркоски Максо 3А",lng:21.409971,lat:42.012929,channel:"FSR"},
+{id:"9500031501",name:"ВЕГЕРА КАРПОШ",street:"УЛ. БУЛ. ПАРТИЗАНСКИ ОДРЕДИ 103",lng:21.404065,lat:42.002302,channel:"FSR"},
+{id:"9500032231",name:"ЛОЛА - ВМ",street:"Булевар Гоце Делчев 33",lng:21.439882,lat:41.998354,channel:"FSR"},
+{id:"9500032261",name:"ЗОНА АЗУРИ ДОО",street:"ЈАНЕ САНДАНСКИ 11-ВЛЕЗ 4",lng:21.461394,lat:41.989299,channel:"FSR"},
+{id:"9500032478",name:"БУШТУР КОМПАНИ",street:"КЕЈ 13-ТИ НОЕМВРИ 180",lng:21.434461,lat:41.995475,channel:"FSR"},
+{id:"9500032595",name:"САРАЈЕВА СТЕАК ХОУСЕ ДИАМОНД МАЛЛ",street:"Св. Кирил и Методиј 31",lng:21.427132,lat:41.991159,channel:"FSR"},
+{id:"9500032598",name:"СУ ДАЈМОНД МОЛ",street:"Св. Кирил и Методиј 31",lng:21.427474,lat:41.990862,channel:"FSR"},
+{id:"9500032602",name:"АМИГОС ЖЕЛЕЗНИЧКА",street:"Св. Кирил и Методиј ББ",lng:21.427017,lat:41.991275,channel:"FSR"},
+{id:"9500032711",name:"КАБРАНТИ ЏЕВАХИР",street:"Булевар Србија 33",lng:21.466566,lat:41.979813,channel:"FSR"},
+{id:"9500032713",name:"СУШИКО ЗЕН",street:"СВ. КИРИЛ И МЕТОДИЈ 31",lng:21.429353,lat:41.990827,channel:"FSR"},
+{id:"9500032714",name:"РЕСТОРАН ПАНОРАМА СКОПЈЕ",street:"САЛВАДОР АЉЕНДЕ 79/3-ДП 1",lng:21.418823,lat:41.984681,channel:"FSR"},
+{id:"9500033308",name:"ГРЕЕН ХИЛЛ",street:"ГОРНО НЕРЕЗИ ББ",lng:21.379569,lat:41.983501,channel:"FSR"},
+{id:"9500033477",name:"ЛЕКА 2022",street:"Трета македонска бригада 4А",lng:21.439206,lat:41.989063,channel:"FSR"},
+{id:"9500034220",name:"ДЕСТАН ПАРК",street:"ЈОРДАН-ХАЏИКОНСТАНТИНОВ ЏИНОТ 12",lng:21.425814,lat:42.003666,channel:"FSR"},
+{id:"9500034350",name:"ЏАНЕС",street:"КАЗАНЏИСКА 13/1-1",lng:21.436860,lat:41.999593,channel:"FSR"},
+{id:"9500034493",name:"АВИАТОР 2 (ЃОРЧЕ)",street:"ЃОРЧЕ ПЕТРОВ БР.22 КАМ",lng:21.365188,lat:42.007502,channel:"FSR"},
+{id:"9500034495",name:"ЅВЕЗДЕН ОКЕАН РЕСТОРАН ЦЕНТАР",street:"ЛЕРМОНТОВА 19",lng:21.427329,lat:41.995763,channel:"FSR"},
+{id:"9500035322",name:"ЦВЕТ БИСТРО МАНИА",street:"ФРАЊО КЛУЗ 14",lng:21.449976,lat:41.985349,channel:"FSR"},
+{id:"9500035574",name:"ФОРУМ",street:"АНКАРСКА 21",lng:21.408448,lat:41.997149,channel:"FSR"},
+{id:"9500035844",name:"БОНОБО",street:"ЖЕЛЕЗНИЧКА 41",lng:21.429854,lat:41.989306,channel:"FSR"},
+{id:"9500035862",name:"ЈОЛК",street:"Балканска 1-1",lng:21.439121,lat:41.985307,channel:"FSR"},
+{id:"9500035964",name:"ПИЦЕРИЈА СОРЕЛЕ",street:"Булевар Партизански одре 62-2/ЛОК.1",lng:21.400941,lat:42.003206,channel:"FSR"},
+{id:"9500035969",name:"БАР & РЕСТОРАН ЕЛИТА БАЈ ТМ ИЛИ",street:"9 49 6",lng:21.575123,lat:41.994644,channel:"FSR"},
+{id:"9500035980",name:"ХА-ЕН",street:"Ментаз Алајбегу 162",lng:21.445621,lat:42.013187,channel:"FSR"},
+{id:"9500036028",name:"АУРА ЛОУНГЕ (ОКТА КАРПОШ)",street:"Булевар Партизански одреди 104",lng:21.396232,lat:42.003335,channel:"FSR"},
+{id:"9500036218",name:"Риа’с",street:"БУЛЕВАР ИЛИНДЕН 94А",lng:21.413940,lat:42.006910,channel:"FSR"},
+{id:"9500036258",name:"ФРИЕНДС ЛАНЧ БАР",street:"Улица 1 27",lng:21.611416,lat:41.940734,channel:"FSR"},
+{id:"9500036265",name:"КРОШНА",street:"Даме Груев 18/ ЛОКАЛ2",lng:21.428137,lat:41.994664,channel:"FSR"},
+{id:"9500036318",name:"МАНГО АКТИВ",street:"УЛ.БУЛ.ЈАНЕ САНДАНСКИ БР.11-3",lng:21.460214,lat:41.989935,channel:"FSR"},
+{id:"9500036324",name:"КАФЕ БАР ЛЕО",street:"Улица 532 124",lng:21.586083,lat:41.990047,channel:"FSR"},
+{id:"9500036394",name:"БИСТРО",street:"ЌЕМАЛ СЕЈФУЛА 2Б",lng:21.443782,lat:42.015000,channel:"FSR"},
+{id:"9500036549",name:"ФОРЦА ФЈУЖН",street:"СВ. КИРИЛ И МЕТОДИЈ 3",lng:21.426127,lat:41.992672,channel:"FSR"},
+{id:"9500036632",name:"СИЕСТА",street:"Луј Пастер 11А",lng:21.429375,lat:41.993153,channel:"FSR"},
+{id:"9510000195",name:"ПИЦЕРИЈА ЕНРИКО",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 64-3Б",lng:21.399103,lat:42.002977,channel:"FSR"},
+{id:"9510000280",name:"БАЛКАН СКОПЈЕ",street:"Улица 1640 7",lng:21.515101,lat:41.991336,channel:"FSR"},
+{id:"9510000351",name:"ЕРС ГРОУП ДООЕЛ",street:"Булевар Србија 24",lng:21.465552,lat:41.979784,channel:"FSR"},
+{id:"9510000744",name:"СОФРА РЕСТОРАН",street:"УЛИЦА ЦВЕТАН ДИМОВ 112",lng:21.444728,lat:42.010345,channel:"FSR"},
+{id:"9510000958",name:"УРБАН КОРНЕР",street:"УЛИЦА ДРЕЗДЕНСКА 19",lng:21.405203,lat:41.999435,channel:"FSR"},
+{id:"9510001156",name:"КУБАН",street:"КЕЈ 13-ТИ НОЕМВРИ 180",lng:21.444924,lat:41.995496,channel:"FSR"},
+{id:"9510001181",name:"МАРТИНИ",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 84а",lng:21.400014,lat:42.002998,channel:"FSR"},
+{id:"9500000202",name:"ТАБАК ИВ (АЕРОДРОМ)",street:"БУЛЕВАР ЈАНЕ САНДАНСКИ",lng:21.458654,lat:41.989583,channel:"Kiosk/Newsstand"},
+{id:"9500000221",name:"БИЉИНО",street:"УЛ. 8 82",lng:21.646188,lat:41.976278,channel:"Kiosk/Newsstand"},
+{id:"9500000251",name:"МАКЕЈА",street:"Бранко Заревски бр.54б,Драчево",lng:21.514513,lat:41.939046,channel:"Kiosk/Newsstand"},
+{id:"9500000308",name:"ЕКСПАНДА",street:"ЉУБЉАНСКА",lng:21.390738,lat:42.004696,channel:"Kiosk/Newsstand"},
+{id:"9500000829",name:"БОЛИДАС",street:"11-ти Октомври",lng:21.433678,lat:41.992397,channel:"Kiosk/Newsstand"},
+{id:"9500000920",name:"ФАО 3",street:"БУЛЕВАР КРСТЕ ПЕТКОВ МИСИРКОВ",lng:21.439388,lat:41.999197,channel:"Kiosk/Newsstand"},
+{id:"9500000924",name:"ТОЛАКС УЛИЦА МАК. (ЦЕНТАР)",street:"МАКЕДОНИЈА ББ",lng:21.431022,lat:41.995019,channel:"Kiosk/Newsstand"},
+{id:"9500000960",name:"ЗОКИ ГОЛД",street:"КОЗЛЕ",lng:21.403151,lat:41.993485,channel:"Kiosk/Newsstand"},
+{id:"9500000961",name:"КАПАЕЛ ТОБАКО",street:"Булевар Партизански одреди",lng:21.423430,lat:41.998424,channel:"Kiosk/Newsstand"},
+{id:"9500000969",name:"ФЕЛИКС ЛУК",street:"Митрополит Теодосиј Гологанов",lng:21.408922,lat:41.995819,channel:"Kiosk/Newsstand"},
+{id:"9500000979",name:"БЕКИМ БИС",street:"АВРАМ ПИСЕВСКИ",lng:21.445606,lat:42.003658,channel:"Kiosk/Newsstand"},
+{id:"9500001921",name:"РЕИДА ЦЕНТАР",street:"Булевар Кочо Рацин",lng:21.437981,lat:41.991923,channel:"Kiosk/Newsstand"},
+{id:"9500001922",name:"ТОБАКО 0 АЕРОДРОМ",street:"Булевар Јане Сандански",lng:21.454855,lat:41.988219,channel:"Kiosk/Newsstand"},
+{id:"9500001923",name:"ТОБАКО 1 ЈУГОДРВО",street:"Булевар Кочо Рацин",lng:21.437478,lat:41.991725,channel:"Kiosk/Newsstand"},
+{id:"9500001924",name:"ТОЛАКС СКОПЈАНКА (АЕРОДРОМ)",street:"БУЛЕВАР КУЗМАН ЈОСИФОВСКИ ПИТУ",lng:21.450718,lat:41.988713,channel:"Kiosk/Newsstand"},
+{id:"9500001960",name:"ТОЛАКС БИСЕР 1 (АЕРОДРОМ)",street:"БУЛЕВАР ЈАНЕ САНДАНСКИ",lng:21.465696,lat:41.985068,channel:"Kiosk/Newsstand"},
+{id:"9500002008",name:"ТОБАКО ТОМИ",street:"НАРОДНИ ХЕРОИ ББ",lng:21.438509,lat:41.975960,channel:"Kiosk/Newsstand"},
+{id:"9500002022",name:"ТОБАКО ЛУКА ТРЕЈД",street:"Виктор Иго",lng:21.437356,lat:41.986012,channel:"Kiosk/Newsstand"},
+{id:"9500002026",name:"ТОБАКО АН ДАР",street:"ХРИСТО ТАТАРЧЕВ",lng:21.444059,lat:41.974049,channel:"Kiosk/Newsstand"},
+{id:"9500002145",name:"ТОЛАКС ХОЛИДЕЈ ИН (ЦЕНТАР)",street:"Кеј 13-ти Ноември",lng:21.436693,lat:41.994630,channel:"Kiosk/Newsstand"},
+{id:"9500002146",name:"ТОЛАКС ГТЦ (ЦЕНТАР)",street:"11-TI OKTOMVRI​",lng:21.434405,lat:41.995190,channel:"Kiosk/Newsstand"},
+{id:"9500002175",name:"ПРИНЦ-Б-РОЈАЛ ТП",street:"ДИМИТРИЈА ЧУПОВСКИ  5А",lng:21.430205,lat:41.994636,channel:"Kiosk/Newsstand"},
+{id:"9500002179",name:"ЏАНЕР",street:"ДИМИТРИЈА ЧУПОВСКИ  2А",lng:21.432221,lat:41.994296,channel:"Kiosk/Newsstand"},
+{id:"9500002182",name:"ДУКАНЏИК",street:"Св. Прохор Пчински",lng:21.435376,lat:42.005943,channel:"Kiosk/Newsstand"},
+{id:"9500002183",name:"ГАБЕРЦИ",street:"Булевар Крсте Петков Мисирков",lng:21.439678,lat:42.001722,channel:"Kiosk/Newsstand"},
+{id:"9500002194",name:"ХАСА",street:"ЏОН КЕНЕДИ",lng:21.433224,lat:42.012773,channel:"Kiosk/Newsstand"},
+{id:"9500002367",name:"ФУД МАСТЕР АВТОБУСКА",street:"Крушевска Република (Пролет)",lng:21.445222,lat:41.990698,channel:"Kiosk/Newsstand"},
+{id:"9500003852",name:"ГРИЦКО ЦЕНТАР",street:"Св. Кирил и Методиј",lng:21.425951,lat:41.992869,channel:"Kiosk/Newsstand"},
+{id:"9500003861",name:"САДЕ-С 3 ЦЕНТАР",street:"СВ. КИРИЛ И МЕТОДИЈ",lng:21.426258,lat:41.992675,channel:"Kiosk/Newsstand"},
+{id:"9500003891",name:"ДАРЈАН",street:"Анри Барбис",lng:21.494250,lat:41.998143,channel:"Kiosk/Newsstand"},
+{id:"9500003894",name:"ВИНСТОН",street:"ЈАНЕ САНДАНСКИ  ББ",lng:21.458338,lat:41.989581,channel:"Kiosk/Newsstand"},
+{id:"9500004146",name:"ТАК ТОБАКО",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ",lng:21.395182,lat:42.003426,channel:"Kiosk/Newsstand"},
+{id:"9500004148",name:"ДЕНЕСА - ТОБАКО",street:"29-ТИ НОЕМВРИ",lng:21.417691,lat:42.000133,channel:"Kiosk/Newsstand"},
+{id:"9500004156",name:"КРОНЕКС",street:"Булевар Водњанска ББ",lng:21.419882,lat:41.989788,channel:"Kiosk/Newsstand"},
+{id:"9500004165",name:"МТ АС",street:"БУЛЕВАР ВОДЊАНСКА",lng:21.420918,lat:41.990522,channel:"Kiosk/Newsstand"},
+{id:"9500005115",name:"ЗАФИРА ТАБАКОС",street:"11-ti Oktomvri​",lng:21.435526,lat:41.994352,channel:"Kiosk/Newsstand"},
+{id:"9500005130",name:"ПАРАГЛАЈДЕР",street:"ДИМИТРИЈА ЧУПОВСКИ 15",lng:21.427563,lat:41.995232,channel:"Kiosk/Newsstand"},
+{id:"9500005238",name:"АЛЕМАРК",street:"Булевар Александар Македонски",lng:21.464487,lat:42.001899,channel:"Kiosk/Newsstand"},
+{id:"9500005258",name:"ТОБАКО ГОГИ",street:"ЃОРЃИ ДИМИТРОВ ББ",lng:21.441962,lat:41.972966,channel:"Kiosk/Newsstand"},
+{id:"9500005263",name:"БОЕЛС ПРОМ ДООЕЛ",street:"Крушевска Република (Пролет)",lng:21.445487,lat:41.990929,channel:"Kiosk/Newsstand"},
+{id:"9500007070",name:"МАНЕКСО РАМПА",street:"ДРЗАВНА БОЛНИЦА РАМПА ББ",lng:21.425398,lat:41.990349,channel:"Kiosk/Newsstand"},
+{id:"9500007071",name:"МАНЕКСО",street:"ДРЗАВНА БОЛНИЦА  ББ",lng:21.422086,lat:41.988328,channel:"Kiosk/Newsstand"},
+{id:"9500007083",name:"КОРАБ",street:"БУЛ. ПАРТИЗАНСКИ ОДРЕДИ  ББ",lng:21.383908,lat:42.004852,channel:"Kiosk/Newsstand"},
+{id:"9500007101",name:"ДИРЕКТ",street:"ВОИН ДРАШКОЦИ ББ",lng:21.370048,lat:42.003971,channel:"Kiosk/Newsstand"},
+{id:"9500007222",name:"ТОП ГАН 0 ЖЕЛЕЗНИЧКА",street:"Крушевска Република (Пролет)",lng:21.445636,lat:41.991214,channel:"Kiosk/Newsstand"},
+{id:"9500007243",name:"КАМИ Ж",street:"КОЦЕ МЕТАЛЕЦ 2Б",lng:21.460817,lat:42.010534,channel:"Kiosk/Newsstand"},
+{id:"9500011241",name:"АЛОЕ ВЕРА",street:"Булевар Јане Сандански 24-1/24",lng:21.463602,lat:41.989495,channel:"Kiosk/Newsstand"},
+{id:"9500012733",name:"АЛИ ТОБАКО",street:"Булевар Крсте Петков Мисирков",lng:21.439728,lat:42.003091,channel:"Kiosk/Newsstand"},
+{id:"9500012741",name:"ТАНЕР ЈУНИОР",street:"КЕЈ 13ТИ НОЕМВРИ  ГТЦ ГТЦ4 ПРИ99",lng:21.435518,lat:41.994167,channel:"Kiosk/Newsstand"},
+{id:"9500016984",name:"САДЕ С ПАРТИЗАНСКА",street:"ПАРТИЗАНСКИ ОДРЕДИ ББ",lng:21.405942,lat:42.001486,channel:"Kiosk/Newsstand"},
+{id:"9500017079",name:"ДМВ ТОБАКО",street:"НАУМ НАУМОВСКИ БОРЧЕ",lng:21.424001,lat:41.998828,channel:"Kiosk/Newsstand"},
+{id:"9500021765",name:"ЗОКИ И ЛАЗЕ",street:"Томе Арсовски",lng:21.434959,lat:41.982306,channel:"Kiosk/Newsstand"},
+{id:"9500022047",name:"ГОГИ ТРАФИКА 6",street:"МАКЕДОНИЈА 13А",lng:21.429979,lat:41.992505,channel:"Kiosk/Newsstand"},
+{id:"9500022388",name:"ЖАК-МАР 2",street:"ВЕЉКО ВЛАХОВИЌ 7",lng:21.429224,lat:41.994762,channel:"Kiosk/Newsstand"},
+{id:"9500022452",name:"КИО ТОБАКО",street:"Мак. Фрчк.",lng:21.436380,lat:42.000787,channel:"Kiosk/Newsstand"},
+{id:"9500022894",name:"ЈО-АН 1",street:"Виа Игнација",lng:21.360684,lat:42.006578,channel:"Kiosk/Newsstand"},
+{id:"9500023420",name:"ЕСТЕРА ЛУКА",street:"ШЕКСПИРОВА 6",lng:21.407568,lat:42.002859,channel:"Kiosk/Newsstand"},
+{id:"9500023472",name:"БАМАЛ 2016",street:"РИСТО ШИШКОВ 40",lng:21.424138,lat:42.002659,channel:"Kiosk/Newsstand"},
+{id:"9500023569",name:"ЈО-АН ТОБАКО",street:"АНГЕЛ ДИНЕВ 1",lng:21.375233,lat:42.006350,channel:"Kiosk/Newsstand"},
+{id:"9500024001",name:"КОМПАНИЈА БАКО ЦЕНТАР",street:"ВЕЉКО ВЛАХОВИЌ 1-1",lng:21.431775,lat:41.994242,channel:"Kiosk/Newsstand"},
+{id:"9500024053",name:"МАРКЕТ 100",street:"СКУПИ 3-А",lng:21.404037,lat:42.014164,channel:"Kiosk/Newsstand"},
+{id:"9500024204",name:"ДРА-МА",street:"ЃОРЧЕ ПЕТРОВ 26А",lng:21.361551,lat:42.006905,channel:"Kiosk/Newsstand"},
+{id:"9500024649",name:"ФЕНИКС ВОДНО",street:"ОЛИМПИСКА ПАТЕКА",lng:21.407978,lat:41.975812,channel:"Kiosk/Newsstand"},
+{id:"9500024731",name:"ТОЛАКС ЦВЕТЕН ПАЗАР (КАПИШТЕЦ)",street:"НАРОДЕН ФРОНТ 99",lng:21.419779,lat:41.993604,channel:"Kiosk/Newsstand"},
+{id:"9500024732",name:"ТОЛАКС (КАПИШТЕЦ)",street:"НАРОДЕН ФРОНТ 142",lng:21.420238,lat:41.993539,channel:"Kiosk/Newsstand"},
+{id:"9500024873",name:"ЛАУРА-ИРИС",street:"БУЛЕВАР ЈАНЕ САНДАНСКИ 78",lng:21.465728,lat:41.984736,channel:"Kiosk/Newsstand"},
+{id:"9500025300",name:"ТП ТОБАКО ЛИЧЕ",street:"УЛ.ИВАН ХАЏИНИКОЛОВ БР.15А ДРАЧЕВО",lng:21.515805,lat:41.939351,channel:"Kiosk/Newsstand"},
+{id:"9500025446",name:"МА ТОБАКО АЛИ 1",street:"ЦВЕТАН ДИМОВ 34",lng:21.443065,lat:42.007776,channel:"Kiosk/Newsstand"},
+{id:"9500026199",name:"ТОЛЛАКС ЃОРЧЕ  КИОСК М1 БР.12",street:"ЃОРЧЕ ПЕТРОВ 15А",lng:21.365260,lat:42.007558,channel:"Kiosk/Newsstand"},
+{id:"9500026770",name:"ФАО З",street:"ЛАЗАР ТАНЕВ",lng:21.437006,lat:42.000661,channel:"Kiosk/Newsstand"},
+{id:"9500026775",name:"ТОБАКО РАМПА",street:"11-ОКТОМВРИ 45/ЛОК.304",lng:21.436989,lat:41.987000,channel:"Kiosk/Newsstand"},
+{id:"9500026918",name:"ГОГА М",street:"Петре Георгиев",lng:21.439473,lat:42.003709,channel:"Kiosk/Newsstand"},
+{id:"9500026954",name:"ЛИЛА СИТ 3 ВОДЊАНСКА",street:"БУЛЕВАР ВОДЊАНСКА",lng:21.421344,lat:41.990983,channel:"Kiosk/Newsstand"},
+{id:"9500027315",name:"ДИМАК ТРЕЈД",street:"ДАМЕ ГРУЕВ 14",lng:21.428137,lat:41.994376,channel:"Kiosk/Newsstand"},
+{id:"9500027617",name:"ДРИТОН КОМЕРЦ",street:"МАКЕДОНСКО-КОСОВСКА БРИГАДА 7 7А",lng:21.432459,lat:42.022524,channel:"Kiosk/Newsstand"},
+{id:"9500027783",name:"ТОЛАКС СОБОРНА (ЦЕНТАР)",street:"БУЛ. СВЕТИ КЛИМЕНТ ОХРИДСКИ 30 ЛОКА",lng:21.425818,lat:41.999373,channel:"Kiosk/Newsstand"},
+{id:"9500028117",name:"ИКС ТРИ ТОБАКО",street:"КЕЈ 13-ТИ НОЕМВРИ Б 2/4",lng:21.433426,lat:41.995045,channel:"Kiosk/Newsstand"},
+{id:"9500028305",name:"КИОСК М1 БР 18 ДРАЧЕВО",street:"ИВАН ХАЏИНИКОЛОВ 8А",lng:21.516769,lat:41.939061,channel:"Kiosk/Newsstand"},
+{id:"9500028377",name:"СЕМКАРА - ГРИЦЕ",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 87",lng:21.410930,lat:42.000982,channel:"Kiosk/Newsstand"},
+{id:"9500028382",name:"АА ГРОУП ТОБАКО",street:"АДЕМ ДЕМАЧИ ТЦ ТРЕСКА",lng:21.433671,lat:42.022295,channel:"Kiosk/Newsstand"},
+{id:"9500028551",name:"ВЕНЕРА ТРЕЈД ФРЕШ НУТС",street:"11-TI OKTOMVRI​ 2 ГТЦ/ДП1",lng:21.434075,lat:41.994561,channel:"Kiosk/Newsstand"},
+{id:"9500028589",name:"ФЕМИЛИ КОМПАНИ",street:"НИКОЛА ВАПЦАРОВ 005",lng:21.430744,lat:41.995640,channel:"Kiosk/Newsstand"},
+{id:"9500029054",name:"МЕРТ 2021",street:"БУЛЕВАР ГОЦЕ ДЕЛЧЕВ 6/ВЛЕЗ1-1",lng:21.438730,lat:41.999610,channel:"Kiosk/Newsstand"},
+{id:"9500029329",name:"АГРОСЕМЕ",street:"МАЏАРИ ББ",lng:21.503999,lat:42.004264,channel:"Kiosk/Newsstand"},
+{id:"9500029364",name:"ТОБАКО ТИТИ",street:"Момин Поток 17",lng:21.409014,lat:42.025717,channel:"Kiosk/Newsstand"},
+{id:"9500029384",name:"АМ ТОБАКО",street:"Бледски договор 31А",lng:21.401918,lat:42.005047,channel:"Kiosk/Newsstand"},
+{id:"9500029459",name:"ТАБАКО МУЛЕ",street:"НИКОЛА МАРТИНОВСКИ 69",lng:21.438919,lat:42.004673,channel:"Kiosk/Newsstand"},
+{id:"9500029541",name:"ТОЛАКС (ИСТ ГЕЈТ МОЛ)",street:"БЕЛАСИЦА 2",lng:21.452253,lat:41.997607,channel:"Kiosk/Newsstand"},
+{id:"9500029598",name:"МАРКТОРИ А 2",street:"МАРКО КРАЛЕ 1",lng:21.446923,lat:42.036566,channel:"Kiosk/Newsstand"},
+{id:"9500029911",name:"ТОБАКО ШИШЕ ШТЕКА ШОП",street:"МЕТРОПОЛИТ ТЕОДОСИЈ ГОЛОГ 116 ЛОК.2",lng:21.396868,lat:41.997801,channel:"Kiosk/Newsstand"},
+{id:"9500030132",name:"КРАФТНУТС",street:"БУЛЕВАР ЈАНЕ САНДАНСКИ 78/ ЛОК.2",lng:21.465770,lat:41.984495,channel:"Kiosk/Newsstand"},
+{id:"9500030311",name:"КАНАС 3",street:"Париска Комуна 2",lng:21.509254,lat:41.995232,channel:"Kiosk/Newsstand"},
+{id:"9500030567",name:"ГОЛД ШОУ",street:"Бетовенова 4/2",lng:21.444695,lat:42.031996,channel:"Kiosk/Newsstand"},
+{id:"9500030957",name:"АГРО- УЛТРА",street:"БУЛЕВАР СВЕТИ КЛИМЕНТ ОХРИД 12 2-55",lng:21.425322,lat:41.995864,channel:"Kiosk/Newsstand"},
+{id:"9500031248",name:"БУМЕРАНГ ТОБАКО",street:"Булевар Свети Климент Охри 45 ЛОК/1",lng:21.425426,lat:41.996884,channel:"Kiosk/Newsstand"},
+{id:"9500031260",name:"МФЦ ТОБАКО",street:"Булевар Водњанска ББ",lng:21.421724,lat:41.991405,channel:"Kiosk/Newsstand"},
+{id:"9500031318",name:"РИЧИ ПЛУС",street:"Вера Јоциќ 53/1-ЛОК.4",lng:21.439398,lat:41.980568,channel:"Kiosk/Newsstand"},
+{id:"9500031352",name:"ВИНОМАРКЕТ МОНДАВИ",street:"Даме Груев БР.1/Б-23",lng:21.430714,lat:41.992325,channel:"Kiosk/Newsstand"},
+{id:"9500031491",name:"БРОН ПРОМЕТ",street:"Булевар Александар Македон 4А-ЛОК.1",lng:21.464555,lat:42.001992,channel:"Kiosk/Newsstand"},
+{id:"9500032132",name:"КОНСТАНТИН",street:"Виктор Иго 8/1",lng:21.437437,lat:41.985992,channel:"Kiosk/Newsstand"},
+{id:"9500032167",name:"АМО ФРЕШ ПИЉАРА (САРАЈ)",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 62-ЛОК 9",lng:21.317265,lat:41.992924,channel:"Kiosk/Newsstand"},
+{id:"9500032305",name:"ТОБАКО КОМПАНИ 2",street:"Булевар Водњанска 26",lng:21.420804,lat:41.990831,channel:"Kiosk/Newsstand"},
+{id:"9500032369",name:"НОФФИН",street:"Ѓерѓ Ќириази 57А",lng:21.439008,lat:41.999729,channel:"Kiosk/Newsstand"},
+{id:"9500032651",name:"КОРЕКТ ДЕЛИВЕРИ",street:"4-ти Јули 51A",lng:21.360675,lat:42.009579,channel:"Kiosk/Newsstand"},
+{id:"9500032652",name:"СПОТ 1",street:"Булевар Водњанска 11",lng:21.423010,lat:41.991790,channel:"Kiosk/Newsstand"},
+{id:"9500032676",name:"ТОБАКО ТИТИ 2",street:"Индира Ганди 75",lng:21.429342,lat:42.026881,channel:"Kiosk/Newsstand"},
+{id:"9500033293",name:"ГИЛЕ ГРУП ПАРК",street:"Булевар Водњанска 16",lng:21.421125,lat:41.989081,channel:"Kiosk/Newsstand"},
+{id:"9500033658",name:"СТРИТ СТОП ШОП ДООЕЛ",street:"Борис Трајковски 32",lng:21.438337,lat:41.984886,channel:"Kiosk/Newsstand"},
+{id:"9500033674",name:"ИЛИЈАНА 2 ДООЕЛ",street:"ПАРИСКА КОМУНА 5",lng:21.508125,lat:41.993793,channel:"Kiosk/Newsstand"},
+{id:"9500033744",name:"Д СТОРЕ",street:"Париска Комуна 183 А",lng:21.507999,lat:41.993683,channel:"Kiosk/Newsstand"},
+{id:"9500034500",name:"ЧИНАР",street:"11-ti Oktomvri​ 2",lng:21.433761,lat:41.995207,channel:"Kiosk/Newsstand"},
+{id:"9500034714",name:"ТОБАКО КИКИ",street:"Булевар Никола Карев 40 Б",lng:21.434708,lat:42.008212,channel:"Kiosk/Newsstand"},
+{id:"9500035027",name:"БРАТСТВО ПИЉАРА 2024",street:"ВАСИЛ ГЛАВИНОВ 3",lng:21.427674,lat:41.996239,channel:"Kiosk/Newsstand"},
+{id:"9500035116",name:"ТОБАКО ДЕА",street:"УЛ1. 48",lng:21.353885,lat:42.028848,channel:"Kiosk/Newsstand"},
+{id:"9500035132",name:"ГОЛДЕН ТОБАКО",street:"ЛУЈ ПАСТЕР 11",lng:21.429744,lat:41.993122,channel:"Kiosk/Newsstand"},
+{id:"9500035138",name:"СТАР ТОБАКО",street:"Булевар Крсте Петков Мисирков 20 А",lng:21.441895,lat:42.005646,channel:"Kiosk/Newsstand"},
+{id:"9500035150",name:"СПОТ 2",street:"ДАМЕ ГРУЕВ 5",lng:21.429188,lat:41.992501,channel:"Kiosk/Newsstand"},
+{id:"9500035199",name:"СМОУК ШОП",street:"БУЛЕВАР ВИДОЕ СМИЛЕВСКИ Б 5 ЛОКАЛ 8",lng:21.473147,lat:41.982089,channel:"Kiosk/Newsstand"},
+{id:"9500035408",name:"БИЛИ КОМЕРЦ",street:"1 30 БУКОВИЌ",lng:21.238135,lat:41.974476,channel:"Kiosk/Newsstand"},
+{id:"9500035441",name:"ТОБАКО ЕПУ",street:"20-ти Октомври 42-001",lng:21.417222,lat:41.998137,channel:"Kiosk/Newsstand"},
+{id:"9500035686",name:"ТП МАНДАРИНА",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 129",lng:21.383676,lat:42.004591,channel:"Kiosk/Newsstand"},
+{id:"9500035888",name:"ТОБАКО АНГЕЛА",street:"ИВАН КОЗАРОВ 54",lng:21.438864,lat:41.983590,channel:"Kiosk/Newsstand"},
+{id:"9500035947",name:"МАРКЕТ ХРОМ",street:"КИЧЕВСКА 44",lng:21.370219,lat:42.000448,channel:"Kiosk/Newsstand"},
+{id:"9500035976",name:"БАДИ-2024",street:"Хо Ши Мин 13 Б",lng:21.447592,lat:42.031914,channel:"Kiosk/Newsstand"},
+{id:"9500035995",name:"ТОБАКО ЛИЧЕ 2",street:"ИВАН ХАЏИНИКОЛОВ 90",lng:21.515805,lat:41.939351,channel:"Kiosk/Newsstand"},
+{id:"9500036186",name:"ТОБАКО МЕДО ПИНК",street:"Железничка 30",lng:21.431129,lat:41.988581,channel:"Kiosk/Newsstand"},
+{id:"9500036209",name:"КАПИШТЕЦ ТОБАКО ДООЕЛ",street:"ВАСИЛ ЃОРГОВ 31",lng:21.415070,lat:41.993169,channel:"Kiosk/Newsstand"},
+{id:"9500036228",name:"ТОБАКО НАУМОВСКИ",street:"НИКОЛА ПАРАПУНОВ 41",lng:21.383866,lat:42.007767,channel:"Kiosk/Newsstand"},
+{id:"9500036303",name:"ФУТУРА ГРИН ПДОО СКОПЈЕ",street:"Булевар Партизански одреди 155",lng:21.370061,lat:42.007962,channel:"Kiosk/Newsstand"},
+{id:"9500036332",name:"ГОНИ ТОБАКО",street:"Беласица",lng:21.454350,lat:41.997956,channel:"Kiosk/Newsstand"},
+{id:"9500036506",name:"ЕЛИФ АА",street:"ZEF LUSH MARKU​ 86",lng:21.444512,lat:42.006847,channel:"Kiosk/Newsstand"},
+{id:"9500036593",name:"СТОП ТОБАКО 2025 ДООЕЛ",street:"ГОРЧЕ ПЕТРОВ 7",lng:21.337583,lat:42.007002,channel:"Kiosk/Newsstand"},
+{id:"9510000085",name:"Тобако Заза",street:"УЛИЦА 1 1",lng:21.612817,lat:41.940152,channel:"Kiosk/Newsstand"},
+{id:"9510000165",name:"ФРУТС ТРЕЈД 2",street:"Ѓорче Петров 134",lng:21.350389,lat:42.006062,channel:"Kiosk/Newsstand"},
+{id:"9510000207",name:"РОЈАЛ САЕЛ",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 35",lng:21.421001,lat:41.998716,channel:"Kiosk/Newsstand"},
+{id:"9510000666",name:"ТОБАКО АРНЕКС",street:"ИСМАИЛ ЌЕМАЛИ 43",lng:21.440903,lat:41.991451,channel:"Kiosk/Newsstand"},
+{id:"9510000700",name:"Тобако Маркет Викса",street:"УЛ.ХРИСТО ТАТАРЧЕВ БР.47 Локал 1",lng:21.446157,lat:41.973667,channel:"Kiosk/Newsstand"},
+{id:"9510000731",name:"Смоук Шоп 2",street:"Улица 11-ти Октомври 30/1-л.1",lng:21.435209,lat:41.990099,channel:"Kiosk/Newsstand"},
+{id:"9510000967",name:"ГАБЕРЦИ 2",street:"Bulevar Krste Petkov Misirkov 63",lng:21.439674,lat:42.002582,channel:"Kiosk/Newsstand"},
+{id:"9510000981",name:"НАШИОТ НОВ ДОМ ДООЕЛ",street:"УЛ.ГАБРЕШ 2/2-27 27",lng:21.492586,lat:41.977319,channel:"Kiosk/Newsstand"},
+{id:"9510001087",name:"К.Л. 12",street:"УЛИЦА 1 44",lng:21.524399,lat:41.983367,channel:"Kiosk/Newsstand"},
+{id:"9510001118",name:"ТОБАКО ВИДРА",street:"ЃОРЧЕ ПЕТРОВ 19",lng:21.362003,lat:42.006582,channel:"Kiosk/Newsstand"},
+{id:"9510001121",name:"КОЦЕВ ТОБАКО",street:"УЛИЦА АЛИЈА АВДОВИЌ 185",lng:21.515627,lat:42.020942,channel:"Kiosk/Newsstand"},
+{id:"9500000203",name:"ОКИ МАРКЕТ",street:"Булевар АСНОМ",lng:21.460112,lat:41.990422,channel:"Other Local & Tradit"},
+{id:"9500000209",name:"ДА ЛУКЕ АЕРОДРОМ",street:"Владимир Комаров",lng:21.453309,lat:41.988607,channel:"Other Local & Tradit"},
+{id:"9500000217",name:"ДИСКОНТ МГ",street:"ХРИСТО ТАТАРЧЕВ",lng:21.444691,lat:41.973443,channel:"Other Local & Tradit"},
+{id:"9500000834",name:"ЦОК",street:"САВА МИХАЈЛОВ 7/2",lng:21.512272,lat:42.008080,channel:"Other Local & Tradit"},
+{id:"9500000850",name:"АГРОВАРДАР",street:"Булевар Видое Смилевски Бато",lng:21.474622,lat:41.981887,channel:"Other Local & Tradit"},
+{id:"9500000872",name:"МЕРЛИН ЛИСИЧЕ",street:"МАРШАЛ ТИТО ББ",lng:21.537984,lat:41.958703,channel:"Other Local & Tradit"},
+{id:"9500000873",name:"МЕРЛИН ЈУРУМЛЕРИ",street:"УЛ. 10 ЈУРУМЛЕРИ 19",lng:21.556243,lat:41.967792,channel:"Other Local & Tradit"},
+{id:"9500000879",name:"МИВЕЛ 1 ПЕТРОВЕЦ",street:"УЛ. 1 ПЕТРОВЕЦ ББ",lng:21.615647,lat:41.939346,channel:"Other Local & Tradit"},
+{id:"9500000882",name:"МАР АЛЕК",street:"УЛ. 532 МАРИНО ББ",lng:21.592468,lat:41.980984,channel:"Other Local & Tradit"},
+{id:"9500000884",name:"ДАЛ ДАКО МАРИНО",street:"УЛ. 509 МАРИНО 14",lng:21.593852,lat:41.986350,channel:"Other Local & Tradit"},
+{id:"9500000885",name:"СТЕФИ ИМПЕКС",street:"УЛ. 405 МАРИНО 2",lng:21.588313,lat:41.994917,channel:"Other Local & Tradit"},
+{id:"9500000967",name:"ВОДНО МАРКЕТ",street:"САЛВАДОРЕ АЉЕНДЕ 38",lng:21.417697,lat:41.986200,channel:"Other Local & Tradit"},
+{id:"9500001918",name:"НОВО МААЛО ЦЕНТАР",street:"МИРЧЕ МАЦАН 32",lng:21.438810,lat:41.993196,channel:"Other Local & Tradit"},
+{id:"9500001919",name:"МАЛОНИ 0 АЕРОДРОМ",street:"ПАНДИЛ ШИШКОВ",lng:21.453905,lat:41.983504,channel:"Other Local & Tradit"},
+{id:"9500001920",name:"МАЛОНИ 1 ЛИСИЧЕ",street:"Bulevar ASNOM​",lng:21.472522,lat:41.988809,channel:"Other Local & Tradit"},
+{id:"9500001926",name:"ГИГО ЦРНИЧЕ",street:"ВОСТАНИЧКА ББ",lng:21.428587,lat:41.983893,channel:"Other Local & Tradit"},
+{id:"9500001934",name:"КАЈ Т ЛИЛЕ МИЧУРИН",street:"Анастас Митрев",lng:21.448997,lat:41.986879,channel:"Other Local & Tradit"},
+{id:"9500001949",name:"МСМ КИДС 1 НОВО ЛИСИЧЕ",street:"БУЛЕВАР ВИДОЕ СМИЛЕВСКИ БАТО",lng:21.474426,lat:41.981964,channel:"Other Local & Tradit"},
+{id:"9500001952",name:"АЛКА ЦВ 2 НОВО ЛИСИЧЕ",street:"БУЛЕВАР АСНОМ",lng:21.477543,lat:41.987298,channel:"Other Local & Tradit"},
+{id:"9500001953",name:"БАТЕ",street:"БУЛЕВАР ВИДОЕ СМИЛЕВСКИ БАТО",lng:21.476606,lat:41.981290,channel:"Other Local & Tradit"},
+{id:"9500001954",name:"ТЕДИ ПРОМ",street:"ВИДОЕ СМИЛЕВСКИ БАТО 43",lng:21.476120,lat:41.982896,channel:"Other Local & Tradit"},
+{id:"9500001964",name:"МАРКЕТ ЈОВЧЕ",street:"ТОДОР ЧАНГОВ 59А",lng:21.483423,lat:41.977164,channel:"Other Local & Tradit"},
+{id:"9500001965",name:"ГОРТОН",street:"ЃОРЃИ КАПЧЕВ 32А",lng:21.489772,lat:41.975076,channel:"Other Local & Tradit"},
+{id:"9500001995",name:"КАНАЈА МАРКЕТ",street:"БОРИС ТРАЈКОВСКИ 13Ѓ2",lng:21.468221,lat:41.968507,channel:"Other Local & Tradit"},
+{id:"9500001997",name:"ГРИГОС 4 КИСЕЛА ВОДА",street:"ГЕОРГИ ДИМИТРОВ 13",lng:21.439483,lat:41.977679,channel:"Other Local & Tradit"},
+{id:"9500002028",name:"ЏОВАНИ",street:"МЕТОДИЈА АНДОНОВ ЧЕНТО",lng:21.511199,lat:42.011676,channel:"Other Local & Tradit"},
+{id:"9500000223",name:"ЛИДА ПРОМ",street:"УЛИЦА 10",lng:21.593160,lat:41.979680,channel:"Other Local & Tradit"},
+{id:"9500000229",name:"МАР МАРКЕТ СТАЈЛ 1 САНДЕВО",street:"УЛ.1 САНДЕВО 2",lng:21.394508,lat:42.095580,channel:"Other Local & Tradit"},
+{id:"9500000237",name:"АГРО ЕЛИ УНИВЕРЗАЛНА",street:"ХРИСТО СМИРНЕНСКИ 45",lng:21.414742,lat:41.995927,channel:"Other Local & Tradit"},
+{id:"9500000240",name:"ПАЈЧЕ",street:"ЈОАКИМ КРчОВСКИ 100",lng:21.433429,lat:42.006309,channel:"Other Local & Tradit"},
+{id:"9500000259",name:"ВИСА МАРКЕТ",street:"СКУПИ",lng:21.384038,lat:42.014512,channel:"Other Local & Tradit"},
+{id:"9500000911",name:"БОИВА КАРПОШ  2",street:"Иван Аговски бр.4 локал 1",lng:21.405536,lat:42.002789,channel:"Other Local & Tradit"},
+{id:"9500000926",name:"КРЛЕ ТП",street:"Булевар Партизански одреди",lng:21.399578,lat:42.002929,channel:"Other Local & Tradit"},
+{id:"9500000934",name:"КИКО ПРОМ",street:"УЛ. 10 БР. 61 САНДЕВО",lng:21.399787,lat:42.089235,channel:"Other Local & Tradit"},
+{id:"9500000937",name:"КОМПАНИЈА КИРАНЏИЌ",street:"С. КУЧЕВИШТЕ б.б.",lng:21.417901,lat:42.112612,channel:"Other Local & Tradit"},
+{id:"9500000938",name:"АЛ ЗО МИ",street:"ПРИЗРЕНСКА22  24",lng:21.436357,lat:42.051040,channel:"Other Local & Tradit"},
+{id:"9500000940",name:"ЖАРЕ ТП",street:"С.ГЛУВО ББ",lng:21.403611,lat:42.082814,channel:"Other Local & Tradit"},
+{id:"9500000944",name:"АН ФИ",street:"УЛ. 2 46",lng:21.426239,lat:42.109848,channel:"Other Local & Tradit"},
+{id:"9500000945",name:"ЦУЦИКО",street:"УЛ. 7 1",lng:21.420248,lat:42.109685,channel:"Other Local & Tradit"},
+{id:"9500000946",name:"СЦГ КУЧЕВИШТЕ",street:"УЛ. 4 24",lng:21.418124,lat:42.109102,channel:"Other Local & Tradit"},
+{id:"9500000948",name:"ДАРКО ПРОМ",street:"С.ЉУБАНЦИ ББ",lng:21.455197,lat:42.109490,channel:"Other Local & Tradit"},
+{id:"9500000952",name:"СЦГ МИРКОВЦИ",street:"С.МИРКОВЦИ ББ",lng:21.406283,lat:42.094253,channel:"Other Local & Tradit"},
+{id:"9500000955",name:"ЈМБ КОМПАНИ ВИЗБЕГОВО",street:"УЛ. 2 116",lng:21.410056,lat:42.036631,channel:"Other Local & Tradit"},
+{id:"9500000958",name:"АНИ СОПА",street:"Мелничка",lng:21.428900,lat:42.040328,channel:"Other Local & Tradit"},
+{id:"9500000976",name:"МАРЕЛА 1 КАРШИ ВЕРО",street:"Булевар Мајка Тереза",lng:21.447467,lat:42.017342,channel:"Other Local & Tradit"},
+{id:"9500001950",name:"МСМ КИДС 2 АЕРОДРОМ",street:"Булевар Јане Сандански",lng:21.462195,lat:41.986440,channel:"Other Local & Tradit"},
+{id:"9500001992",name:"АССТОР 3 ПИНТИЈА",street:"ПРВОМАЈСКА  26",lng:21.462244,lat:41.964793,channel:"Other Local & Tradit"},
+{id:"9500001998",name:"ГРИГОС МАРКЕТ ПОСЛЕДНА 24",street:"САВА КОВАЧЕВИЌ ББ",lng:21.449034,lat:41.967944,channel:"Other Local & Tradit"},
+{id:"9500001999",name:"МАКЕДОНКА 88",street:"ХРИСТО ТАТАРЧЕВ",lng:21.448384,lat:41.965176,channel:"Other Local & Tradit"},
+{id:"9500002018",name:"НАВЕЛ ИМПЕКС",street:"БОРИС ТРАЈКОВСКИ",lng:21.438506,lat:41.984285,channel:"Other Local & Tradit"},
+{id:"9500002020",name:"АС КОМ 94",street:"ХРИСТО ТАТАРЧЕВ 14",lng:21.440774,lat:41.962322,channel:"Other Local & Tradit"},
+{id:"9500002023",name:"МАРКЕТ КИС",street:"Христо Татарчев",lng:21.442237,lat:41.978357,channel:"Other Local & Tradit"},
+{id:"9500002027",name:"ЏАРО КОМПАНИ",street:"УЛ 1 С. БУЛАЧАНИ 1А",lng:21.501815,lat:42.068206,channel:"Other Local & Tradit"},
+{id:"9500002044",name:"ИВЧЕ ТРЕИД",street:"МАЏАРИ2 24",lng:21.509172,lat:42.001991,channel:"Other Local & Tradit"},
+{id:"9500002045",name:"ЕУРО НАЈКИ",street:"УЛ.2 С.ИНЏИКОВО 150",lng:21.513519,lat:42.001264,channel:"Other Local & Tradit"},
+{id:"9500002066",name:"МАВИТ 1 МИЛАДИНОВЦИ",street:"С.МИЛАДИНОВЦИ ББ",lng:21.651767,lat:41.987008,channel:"Other Local & Tradit"},
+{id:"9500002068",name:"ДЕБИ 1   КАДИНО",street:"УЛ12 С.КАДИНО 4",lng:21.596640,lat:41.967711,channel:"Other Local & Tradit"},
+{id:"9500002071",name:"ДЕБИ 4",street:"С.КАДИНО Ул11 бр 13",lng:21.596100,lat:41.970205,channel:"Other Local & Tradit"},
+{id:"9500002072",name:"ДЕБИ 7 МРАЛИНО",street:"УЛ1 С.ПЕТРОВЕЦ",lng:21.600192,lat:41.954472,channel:"Other Local & Tradit"},
+{id:"9500002073",name:"ДЕБИ 6 КАДИНО",street:"С КАДИНО 1Ѓ18",lng:21.597792,lat:41.964111,channel:"Other Local & Tradit"},
+{id:"9500002078",name:"ЕВА-С",street:"ГОРНО ЛИСИЧЕ 2",lng:21.482154,lat:41.970925,channel:"Other Local & Tradit"},
+{id:"9500002082",name:"МАЦКО",street:"С.ЗЕЛЕНИКОВО ББ",lng:21.587204,lat:41.885633,channel:"Other Local & Tradit"},
+{id:"9500002092",name:"ПЕЈЧИН",street:"Исаија Мажовски",lng:21.368223,lat:42.006312,channel:"Other Local & Tradit"},
+{id:"9500002095",name:"САНТЛИЈАН",street:"ОВЧЕПОЛСКА",lng:21.424380,lat:42.037313,channel:"Other Local & Tradit"},
+{id:"9500002097",name:"ЧАМ МАРКЕТ",street:"МАКЕДОНСКО КОСОВСКА БИГАДА 19/10",lng:21.434381,lat:42.030730,channel:"Other Local & Tradit"},
+{id:"9500002099",name:"ЖИТО ИНТЕГРАЛ МАРКЕТ",street:"ЈАДРАНСКА МАГИСТРАЛА 105",lng:21.395738,lat:42.039327,channel:"Other Local & Tradit"},
+{id:"9500002105",name:"КОСМОПОЛИТ МАРКЕТ",street:"Скупи",lng:21.383298,lat:42.014176,channel:"Other Local & Tradit"},
+{id:"9500002116",name:"ТИВТ 1 РАДИШАНИ",street:"ЃОРЕ ЃОРЕВСКИ 57А",lng:21.447155,lat:42.062424,channel:"Other Local & Tradit"},
+{id:"9500002122",name:"ЕЦИ-1",street:"УЛ.18 РАДИШАНИ 22",lng:21.452503,lat:42.054025,channel:"Other Local & Tradit"},
+{id:"9500002130",name:"БОНИТА БСМ МАРТКЕТ",street:"НАРОДЕН ФРОНТ",lng:21.421333,lat:41.993106,channel:"Other Local & Tradit"},
+{id:"9500002147",name:"МАЦА",street:"АЛЕКСО ДЕМНИЕВСКИ 40",lng:21.355206,lat:42.002445,channel:"Other Local & Tradit"},
+{id:"9500002151",name:"ДАСЕ",street:"Воин Драшковиќ",lng:21.364903,lat:42.008712,channel:"Other Local & Tradit"},
+{id:"9500002172",name:"ЦАЦИ ТРАФИК СОБОРНА",street:"БУЛЕВАР СВЕТИ КЛИМЕНТ ОХРИДСКИ",lng:21.426312,lat:41.999235,channel:"Other Local & Tradit"},
+{id:"9500002192",name:"ВОРД МФ",street:"Булевар Цветан Димов",lng:21.444261,lat:42.010243,channel:"Other Local & Tradit"},
+{id:"9500002203",name:"РЕЗОН",street:"ЏОН КЕНЕДИ ББ",lng:21.443147,lat:42.013718,channel:"Other Local & Tradit"},
+{id:"9500002204",name:"ДЕПИ",street:"ЏОН КЕНЕДИ",lng:21.444781,lat:42.013862,channel:"Other Local & Tradit"},
+{id:"9500002208",name:"АГРОМАГНАТ",street:"ПЕТРЕ ГЕОРГИЕВ",lng:21.441376,lat:42.002809,channel:"Other Local & Tradit"},
+{id:"9500002212",name:"ПУНЧО",street:"Павле Илиќ",lng:21.439584,lat:42.019393,channel:"Other Local & Tradit"},
+{id:"9500003819",name:"ГОКИ",street:"Bulevar ASNOM​",lng:21.479340,lat:41.985812,channel:"Other Local & Tradit"},
+{id:"9500003822",name:"ФУЛА",street:"ТОДОР ЧАНГОВ 57",lng:21.482352,lat:41.976687,channel:"Other Local & Tradit"},
+{id:"9500003827",name:"БОБИКО",street:"ТОДОР ЧАНГОВ 31",lng:21.481297,lat:41.975964,channel:"Other Local & Tradit"},
+{id:"9500003829",name:"ЛЕТКА КОМПАНИ",street:"АНТОН ВЕЛКОВ 37",lng:21.524127,lat:42.028952,channel:"Other Local & Tradit"},
+{id:"9500003871",name:"МАРКЕТ ДАВИДОФФ",street:"ХРИСТО ТАТАРЧЕВ 24",lng:21.437345,lat:41.957948,channel:"Other Local & Tradit"},
+{id:"9500003872",name:"ЕМИСА ТОШЕ",street:"Христо Татарчев",lng:21.441600,lat:41.958182,channel:"Other Local & Tradit"},
+{id:"9500003875",name:"КИА-КОМ",street:"С. СОПИШТЕ ББ ББ",lng:21.426836,lat:41.954753,channel:"Other Local & Tradit"},
+{id:"9500003878",name:"МАРКЕТ ЈАНЕСКИ 2012",street:"УЛ. 8 С. РАКОТИНЦИ 1",lng:21.416401,lat:41.945555,channel:"Other Local & Tradit"},
+{id:"9500003914",name:"МИМЕР",street:"С. ДОЛНО КОЊАРЕ ББ",lng:21.707246,lat:41.942537,channel:"Other Local & Tradit"},
+{id:"9500003933",name:"ДЕДРА",street:"АНТОН ДИМИТРОВ 1",lng:21.510797,lat:41.944198,channel:"Other Local & Tradit"},
+{id:"9500004131",name:"НАДА ИЦЕ",street:"ИНДИРА ГАНДИ 71",lng:21.422919,lat:42.044164,channel:"Other Local & Tradit"},
+{id:"9500004155",name:"ДИЕМ-ГП МАРКЕТ БР.6 КАРПОШ 2",street:"ШЕКСПИРОВА",lng:21.407361,lat:42.002882,channel:"Other Local & Tradit"},
+{id:"9500004182",name:"22 ЈУЛИ СС",street:"11-ti Oktomvri​",lng:21.434173,lat:41.994874,channel:"Other Local & Tradit"},
+{id:"9500004186",name:"ХРИСТЕФ",street:"ТЦ РАДИШАНИ 1 7",lng:21.451114,lat:42.062396,channel:"Other Local & Tradit"},
+{id:"9500004201",name:"ЃОРЧЕ 2 БН ТП",street:"ЉУБИН",lng:21.335791,lat:42.009252,channel:"Other Local & Tradit"},
+{id:"9500004206",name:"БЕЦИ-КОМ",street:"С.ДОЛНО СВИЛАРЕ ББ",lng:21.285772,lat:42.027131,channel:"Other Local & Tradit"},
+{id:"9500004209",name:"ТЕДИ КОМ",street:"УЛ. 84  КИСЕЛА ЈАБУКА 2",lng:21.349029,lat:42.032053,channel:"Other Local & Tradit"},
+{id:"9500004210",name:"БАКИ-КОМ",street:"3 С.АРНАКИЈА 91",lng:21.269365,lat:41.984066,channel:"Other Local & Tradit"},
+{id:"9500004211",name:"ДВЕ СОНЦА",street:"106  С.НОВО СЕЛО 47",lng:21.352661,lat:42.029800,channel:"Other Local & Tradit"},
+{id:"9500004218",name:"РАЛЕКС",street:"УЛ. 101   С.ВОЛКОВО 63",lng:21.348900,lat:42.037033,channel:"Other Local & Tradit"},
+{id:"9500004219",name:"РАЛЕКС 2",street:"УЛ. 101   С.ВОЛКОВО 51",lng:21.345979,lat:42.046011,channel:"Other Local & Tradit"},
+{id:"9500005109",name:"ВИВРЕСТ МАРКЕТ",street:"ФРАНКЛИН РУЗВЕЛТ 8",lng:21.411740,lat:41.994445,channel:"Other Local & Tradit"},
+{id:"9500005110",name:"АВЕЛА КОМЕРЦ",street:"РАНКЛИН РУЗВЕЛТ 6",lng:21.411522,lat:41.994194,channel:"Other Local & Tradit"},
+{id:"9500005150",name:"ДРЕНЕКС",street:"100 С. ВОЛКОВО 37",lng:21.347069,lat:42.042501,channel:"Other Local & Tradit"},
+{id:"9500005156",name:"СТЕМАР-ТРЕЈД",street:"46 С. ВОЛКОВО 5",lng:21.352072,lat:42.035535,channel:"Other Local & Tradit"},
+{id:"9500005157",name:"ЕЛМА ПРОМЕТ",street:"ПАНАЈОТ ГИНОВСКИ 1Б",lng:21.333605,lat:42.007359,channel:"Other Local & Tradit"},
+{id:"9500005158",name:"ЈЕТА-СТИЛ",street:"1 С.КОНДОВО 104",lng:21.320884,lat:42.010189,channel:"Other Local & Tradit"},
+{id:"9500005159",name:"МЕТИ-ТРЕЈД",street:"1 С. КОНДОВО 99",lng:21.315473,lat:42.011060,channel:"Other Local & Tradit"},
+{id:"9500005172",name:"ФУРКАН ТРЕЈД",street:"10 С. САРАЈ 1",lng:21.321552,lat:42.000823,channel:"Other Local & Tradit"},
+{id:"9500005200",name:"ЦЕЦА",street:"ЃОРЃИ КАПЧЕВ 16/22",lng:21.489982,lat:41.975145,channel:"Other Local & Tradit"},
+{id:"9500005203",name:"ШКОРПИОН",street:"ГАВРИЛ КОНСТАНТИНОВИЌ 77",lng:21.478895,lat:41.979513,channel:"Other Local & Tradit"},
+{id:"9500005246",name:"КАЛИНКА 0 АВТОКОМАНДА",street:"Јани Лукровски",lng:21.465518,lat:42.004073,channel:"Other Local & Tradit"},
+{id:"9500005256",name:"ДЕТЕЛИНА",street:"САВА КОВАЧЕВИЌ 26/2",lng:21.441788,lat:41.958271,channel:"Other Local & Tradit"},
+{id:"9500007041",name:"МАКОМА",street:"Методија Митевски",lng:21.432708,lat:42.020309,channel:"Other Local & Tradit"},
+{id:"9500007042",name:"МЕНСТИЛ МЕНСУР",street:"РАДИШАНСКА  158",lng:21.448356,lat:42.074031,channel:"Other Local & Tradit"},
+{id:"9500007045",name:"ЈУ-КА",street:"Тале Христов",lng:21.439158,lat:42.022163,channel:"Other Local & Tradit"},
+{id:"9500007086",name:"ГИГО ХРОМ",street:"ВОИН ДРАШКОЦИ 1",lng:21.365423,lat:42.006460,channel:"Other Local & Tradit"},
+{id:"9500007102",name:"МАКРЕФОРМ",street:"ЖДАНЕЦ 23А",lng:21.388469,lat:41.994539,channel:"Other Local & Tradit"},
+{id:"9500007114",name:"БУЈО-ТРЕЈД",street:"УЛ. 3 С. РАШЧЕ 13",lng:21.256940,lat:42.022693,channel:"Other Local & Tradit"},
+{id:"9500007125",name:"СЛАВНА ДЕБАРЦА",street:"4. ЈУЛИ",lng:21.349618,lat:42.008667,channel:"Other Local & Tradit"},
+{id:"9500007154",name:"АМ СА МАРКЕТ",street:"УЛ. 171 БР. 22 ГАЗИ БАБА",lng:21.445114,lat:41.998505,channel:"Other Local & Tradit"},
+{id:"9500007165",name:"КРИС МАРИ",street:"ВИНИЧКА 60",lng:21.425128,lat:42.040485,channel:"Other Local & Tradit"},
+{id:"9500007170",name:"ДИЕМ-ГП МАРКЕТ БР.9 ВЛАЕ",street:"БУЛЕВАР ПАТРИЗАНСКИ ОДРЕДИ 149/1",lng:21.371904,lat:42.007067,channel:"Other Local & Tradit"},
+{id:"9500007181",name:"М АЛИ",street:"13 Август - Охридски Договор",lng:21.508939,lat:42.017288,channel:"Other Local & Tradit"},
+{id:"9500007210",name:"ПЕ-БО",street:"Video Smilevski-Bato​",lng:21.473955,lat:41.981931,channel:"Other Local & Tradit"},
+{id:"9500007219",name:"ДИЕМ-ГП МАРКЕТ БР.8 НОВО ЛИСИЧЕ",street:"ВИДОЕ СМИЛЕВСКИ БАТО 2Б",lng:21.471357,lat:41.981011,channel:"Other Local & Tradit"},
+{id:"9500007242",name:"ПАПАК ТРЕИД",street:"КОЦЕ МЕТАЛЕЦ ББ",lng:21.456409,lat:42.014802,channel:"Other Local & Tradit"},
+{id:"9500007250",name:"ЦЕР ПРОМЕТ",street:"“ЖАРКО ЗРЕЊАНИН  112",lng:21.521652,lat:41.940273,channel:"Other Local & Tradit"},
+{id:"9500007253",name:"АНТОНИО АНА",street:"УЛ. 83 СТ. ЗЕЛЕНИКОВО  54",lng:21.589825,lat:41.881465,channel:"Other Local & Tradit"},
+{id:"9500007269",name:"ДАЗДАР",street:"УЛ. 1 БР. 62",lng:21.606759,lat:41.870691,channel:"Other Local & Tradit"},
+{id:"9500007301",name:"МИЛА ДАВСЕМ",street:"R29176",lng:21.680022,lat:41.892009,channel:"Other Local & Tradit"},
+{id:"9500007306",name:"В-И-Д-А-Т  ДООЕЛ",street:"УЛ. 8 С. ДЕЉАДРОВЦЕ 69",lng:21.669936,lat:42.014385,channel:"Other Local & Tradit"},
+{id:"9500007307",name:"ЦВЕТ",street:"УЛ. 8  С.ИЛИНДЕН 161",lng:21.579219,lat:41.996821,channel:"Other Local & Tradit"},
+{id:"9500007310",name:"НИКИ КОМЕРЦ",street:"УЛ. 505 С. МАРИНО ББ",lng:21.589781,lat:41.987132,channel:"Other Local & Tradit"},
+{id:"9500007313",name:"СОЊА",street:"УЛ. 503 С. ЈУРУМЛЕРИ 22",lng:21.561197,lat:41.966943,channel:"Other Local & Tradit"},
+{id:"9500007320",name:"ОР КО ИЛИНДЕН",street:"УЛ. 2 С. ИЛИНДЕН 52",lng:21.564147,lat:41.995715,channel:"Other Local & Tradit"},
+{id:"9500009077",name:"САВИН БОР",street:"С. ДОЛНО КОЊАРЕ ББ",lng:21.710299,lat:41.942473,channel:"Other Local & Tradit"},
+{id:"9500009084",name:"БЛИЗНАЦИ ББ",street:"С. ОГЊАНЦИ ББ",lng:21.583278,lat:41.920128,channel:"Other Local & Tradit"},
+{id:"9500009090",name:"УНИВЕРЗАЛ",street:"УЛ. 9 БУЈКОВЦИ 29А",lng:21.649580,lat:42.002851,channel:"Other Local & Tradit"},
+{id:"9500009095",name:"ДАР МАГ",street:"С. МРШЕВЦИ 26",lng:21.653637,lat:42.015959,channel:"Other Local & Tradit"},
+{id:"9500009117",name:"ГОЛУБ КОМЕРЦ",street:"С. КАТЛАНОВО ББ",lng:21.679972,lat:41.891996,channel:"Other Local & Tradit"},
+{id:"9500009125",name:"КОРУН МАРКЕТ",street:"12-та Македонска бригада",lng:21.477328,lat:41.971460,channel:"Other Local & Tradit"},
+{id:"9500009126",name:"РИСАЛ КАТИЦА",street:"ГОРНО ЛИСИЧЕ ББ",lng:21.485958,lat:41.970007,channel:"Other Local & Tradit"},
+{id:"9500009131",name:"ВАЈОТА ДРАЧЕВО",street:"ПАРТИЗАНСКИ ПАТ ББ",lng:21.518484,lat:41.994393,channel:"Other Local & Tradit"},
+{id:"9500009132",name:"РЕЈСЕР БАТИНЦИ",street:"КОСТА АБРАШЕВ 62",lng:21.481044,lat:41.919737,channel:"Other Local & Tradit"},
+{id:"9500009142",name:"ДАСИЗА",street:"УЛ. 519 КЕРАМИДНИЦА 73",lng:21.464616,lat:41.996600,channel:"Other Local & Tradit"},
+{id:"9500009238",name:"БЛАГА ВОДА",street:"УЛ. 51 НОВО СЕЛО 14",lng:21.346637,lat:42.030792,channel:"Other Local & Tradit"},
+{id:"9500009239",name:"СТАНДАРД",street:"УЛ. 24 ВОЛКОВО 36",lng:21.349798,lat:42.044627,channel:"Other Local & Tradit"},
+{id:"9500009276",name:"ГОДА 93",street:"КОЗЛЕ 88 /ЛОК 10",lng:21.396257,lat:41.994846,channel:"Other Local & Tradit"},
+{id:"9500011338",name:"ЕВРО КОМ - БОГОЕВСКИ КИРЧ0",street:"ЃОРЃИ КАПЧЕВ 44",lng:21.492962,lat:41.976626,channel:"Other Local & Tradit"},
+{id:"9500011855",name:"СТАРИ КОМЕРЦ",street:"7 7",lng:21.382998,lat:42.003595,channel:"Other Local & Tradit"},
+{id:"9500012586",name:"ДИН-НЕТ ДООЕЛ",street:"Bulevar ASNOM​",lng:21.475285,lat:41.988049,channel:"Other Local & Tradit"},
+{id:"9500012592",name:"ВИКИ",street:"УЛ. 8 С. ПЕТРОВЕЦ 11",lng:21.610927,lat:41.937453,channel:"Other Local & Tradit"},
+{id:"9500012598",name:"ТУРБО",street:"УЖИЧКА РЕПУБЛИА ББ",lng:21.515092,lat:41.938285,channel:"Other Local & Tradit"},
+{id:"9500012604",name:"ТО ГО",street:"ВАСИЛИЕ ЃУРОВИЌ 18",lng:21.485216,lat:41.967253,channel:"Other Local & Tradit"},
+{id:"9500012728",name:"ГОРА",street:"ЛАЗАР ЛИЧЕНОСКИ",lng:21.429636,lat:42.011586,channel:"Other Local & Tradit"},
+{id:"9500016427",name:"МАЛИКИ СУПЕРМАРКЕТ",street:"ХАЏИ ЈОВАН ШИШКО57Б",lng:21.421962,lat:42.041389,channel:"Other Local & Tradit"},
+{id:"9500017080",name:"ДАЛЕКС ИЛИНДЕНСКА",street:"Булевар илинденска бр.48",lng:21.425121,lat:42.001439,channel:"Other Local & Tradit"},
+{id:"9500017258",name:"ЕЛИДА 18 НАСЕЛБА ЛИСИЧЕ",street:"Митре Влаот",lng:21.472255,lat:41.974815,channel:"Other Local & Tradit"},
+{id:"9500017399",name:"АТИКА МАРКЕТ ПРОМ",street:"ИВАН МАНОЛЕВ",lng:21.452364,lat:42.019979,channel:"Other Local & Tradit"},
+{id:"9500017625",name:"РАШЧЕ КОМ",street:"1 с. РАШЧЕ   5",lng:21.256279,lat:42.022838,channel:"Other Local & Tradit"},
+{id:"9500017653",name:"ДАЛ ДАКО-Р'ЖАНИЧИНО",street:"УЛ.1   БР.5",lng:21.634596,lat:41.928200,channel:"Other Local & Tradit"},
+{id:"9500017765",name:"АМАР 2015",street:"С. ЉУБОШ   24",lng:21.489168,lat:41.922308,channel:"Other Local & Tradit"},
+{id:"9500017807",name:"АССТОР 5 ЛИСИЧЕ",street:"Тодор Чангов",lng:21.486486,lat:41.978909,channel:"Other Local & Tradit"},
+{id:"9500017814",name:"ЦАЦИ МАР ПРОЉЕЧЕ",street:"ЦИЦО ПОПОВИЌ 8",lng:21.442529,lat:41.990148,channel:"Other Local & Tradit"},
+{id:"9500021910",name:"ЕЛДОРАДО-КОМПАНИ ПЛУС",street:"УЛ 4 БР 14 Б",lng:21.681365,lat:41.891682,channel:"Other Local & Tradit"},
+{id:"9500021925",name:"ДИЕМ-ГП МАРКЕТ БР.10 ТАФТАЛИЏЕ",street:"ПАРИСКА 48 ЛОК.4",lng:21.401187,lat:42.000395,channel:"Other Local & Tradit"},
+{id:"9500022116",name:"ГИЛЕ СУПЕР ТРЕЈД",street:"Лазар Трпoвски​",lng:21.436668,lat:42.013476,channel:"Other Local & Tradit"},
+{id:"9500022234",name:"ДАЛ ДАКО 4 ИДРИЗОВО",street:"УЛ.1 ИДРИЗОВО БР.7",lng:21.572310,lat:41.956669,channel:"Other Local & Tradit"},
+{id:"9500022376",name:"ДАЛЕКС 2 РУЗВЕЛТОВА",street:"АНДОН ДУКОВ",lng:21.416391,lat:42.005274,channel:"Other Local & Tradit"},
+{id:"9500022547",name:"ВАШ МАРКЕТ ДООЕЛ",street:"1 115",lng:21.433960,lat:41.956637,channel:"Other Local & Tradit"},
+{id:"9500022621",name:"РАЛЕКС 4",street:"НИКОЛА ПАРАПУНОВ",lng:21.381779,lat:42.005928,channel:"Other Local & Tradit"},
+{id:"9500022723",name:"АСТОР ГОЦЕ ДЕЛЧЕВ",street:"ГОЦЕ ДЕЛЧЕВ",lng:21.540935,lat:41.972746,channel:"Other Local & Tradit"},
+{id:"9500022772",name:"ММС ЕПА",street:"МАКЕДОНСКО КОСОВСКА БРИГАДА 38-24",lng:21.430962,lat:42.020724,channel:"Other Local & Tradit"},
+{id:"9500023084",name:"ДИЛЛ МАРКЕТ",street:"ХРИСТО ТАТАРЧЕВ ББ",lng:21.443884,lat:41.975558,channel:"Other Local & Tradit"},
+{id:"9500023261",name:"АССТОР 7 МАЏАРМААЛО",street:"ЃУРО ЃОНОВИЌ",lng:21.446224,lat:41.993264,channel:"Other Local & Tradit"},
+{id:"9500023409",name:"ПГ БРЕНД",street:"Челопек",lng:21.447066,lat:42.002032,channel:"Other Local & Tradit"},
+{id:"9500023558",name:"ЉЕДАР ДООЕЛ",street:"4 СТАЈКОВЦИ 129",lng:21.520492,lat:42.023069,channel:"Other Local & Tradit"},
+{id:"9500023609",name:"РИСАЛ 2",street:"Горноврановска",lng:21.481507,lat:41.969919,channel:"Other Local & Tradit"},
+{id:"9500023617",name:"ХЕПИ АС МАРКЕТ 2017",street:"УЛ.1 С. ДОЛНО КОЊАРИ БР.1",lng:21.701401,lat:41.940151,channel:"Other Local & Tradit"},
+{id:"9500023666",name:"ДАЛ ДАКО - ЈУРУМЛЕРИ",street:"УЛ.1 ЈУРУМЛЕРИ БР. 117",lng:21.558241,lat:41.962912,channel:"Other Local & Tradit"},
+{id:"9500023801",name:"М-МАРКЕТ (ГАРДИЕН)",street:"Петре Георгиев",lng:21.440021,lat:42.002827,channel:"Other Local & Tradit"},
+{id:"9500023895",name:"ВЛАДО АБ 2017",street:"Хаџи Јован Шишко",lng:21.425057,lat:42.037049,channel:"Other Local & Tradit"},
+{id:"9500023951",name:"СТОЛЕ ЈУНИОР 2017",street:"2 85",lng:21.409891,lat:42.035681,channel:"Other Local & Tradit"},
+{id:"9500024223",name:"РЕАЛ ИНВЕСТ МАРКЕТ ДООЕЛ СКОПЈЕ",street:"СПИРО ЦРНЕ 2",lng:21.510430,lat:42.011073,channel:"Other Local & Tradit"},
+{id:"9500024383",name:"АНИ КОМЕРЦ СЛС",street:"УЛ 9 ИЛИНДЕН БР 19",lng:21.572504,lat:41.994985,channel:"Other Local & Tradit"},
+{id:"9500024392",name:"АССТОР ИДРИЗОВО",street:"УЛ 3 ИДРИЗОВО БР 2",lng:21.571642,lat:41.956920,channel:"Other Local & Tradit"},
+{id:"9500024526",name:"ФРЕСКО МАРКЕТ",street:"АРАЧИНОВО 1 167",lng:21.572801,lat:42.027540,channel:"Other Local & Tradit"},
+{id:"9500024601",name:"БРЕНД МАРКЕТ 2",street:"205 15",lng:21.541466,lat:41.972393,channel:"Other Local & Tradit"},
+{id:"9500024837",name:"КАНАС",street:"БУЛЕВАР ЈАНЕ САНДАНСКИ",lng:21.459114,lat:41.989702,channel:"Other Local & Tradit"},
+{id:"9500024907",name:"ДАЛ ДАКО 6 МАРИНО",street:"УЛ. 506 МАРИНО БР. 1",lng:21.589169,lat:41.986298,channel:"Other Local & Tradit"},
+{id:"9500024917",name:"АССТОР ДАДО ЈУРУМЛЕРИ",street:"УЛ. 5 28",lng:21.553964,lat:41.965470,channel:"Other Local & Tradit"},
+{id:"9500025094",name:"СТАНИЦА МАРКОВ ДОО",street:"НАСЕЛЕНО МЕСТО БЕЗ УЛИЧЕН СИСТЕМ /",lng:21.412151,lat:41.908174,channel:"Other Local & Tradit"},
+{id:"9500025125",name:"БУРЧЕ ТРГОВИЈА",street:"ДЕМИРХИСАРСКА 14",lng:21.422997,lat:42.038466,channel:"Other Local & Tradit"},
+{id:"9500025390",name:"ВАЈД - Д",street:"Алексо Демниевски",lng:21.354189,lat:42.002527,channel:"Other Local & Tradit"},
+{id:"9500025435",name:"МАР-БИ",street:"УЛ.3 БР.4",lng:21.511087,lat:42.051577,channel:"Other Local & Tradit"},
+{id:"9500025472",name:"ИЈАН",street:"УЛ.101 БР. 35 ВОЛКОВО",lng:21.349980,lat:42.044776,channel:"Other Local & Tradit"},
+{id:"9500025501",name:"ЕРСЕКА МАРКЕТ",street:"ЏОН КЕНЕДИ",lng:21.433577,lat:42.012862,channel:"Other Local & Tradit"},
+{id:"9500025798",name:"ЗЕНГО 1",street:"ПРИШТИНСКА",lng:21.448609,lat:42.038665,channel:"Other Local & Tradit"},
+{id:"9500025937",name:"АССТОР-МАРКЕТ ЧЕНТО",street:"Финска",lng:21.504910,lat:42.004268,channel:"Other Local & Tradit"},
+{id:"9500026398",name:"МАМИ",street:"ПРИЗРЕНСКА 2 33",lng:21.440709,lat:42.048748,channel:"Other Local & Tradit"},
+{id:"9500026609",name:"МИНИ МАРКЕТ ГАЏО",street:"УЛ. 60 С. ВОЛКОВО 20",lng:21.357786,lat:42.044656,channel:"Other Local & Tradit"},
+{id:"9500026636",name:"БИЛЈАНА ПРОМЕТ",street:"УЛ.6 БР.10",lng:21.596195,lat:41.969992,channel:"Other Local & Tradit"},
+{id:"9500026638",name:"ФЛЕА МАРКЕТ",street:"Кумбара",lng:21.440113,lat:42.006006,channel:"Other Local & Tradit"},
+{id:"9500026727",name:"ЛА НОИ",street:"Орце Николов",lng:21.409869,lat:42.005402,channel:"Other Local & Tradit"},
+{id:"9500026732",name:"Маркет 10",street:"Мариовска",lng:21.438248,lat:41.975587,channel:"Other Local & Tradit"},
+{id:"9500026881",name:"АМИ ТРЕЈД КОМПАНИ",street:"УЛ.20 БР.5",lng:21.331053,lat:42.000894,channel:"Other Local & Tradit"},
+{id:"9500026898",name:"ТВИНС МАРКЕТ",street:"ИВАН ХАЏИНИКОЛОВ 32",lng:21.526527,lat:41.936246,channel:"Other Local & Tradit"},
+{id:"9500027156",name:"ИВРАШЕ",street:"УЛ.9 БР.12",lng:21.602050,lat:41.944658,channel:"Other Local & Tradit"},
+{id:"9500027158",name:"ЈЕШИЉ ЕЉМА",street:"11 ББ",lng:21.516262,lat:42.018845,channel:"Other Local & Tradit"},
+{id:"9500027276",name:"МАРКЕТ ЛЕНИ ПРОМ",street:"УЛ.18 БР.2",lng:21.560357,lat:41.965331,channel:"Other Local & Tradit"},
+{id:"9500027349",name:"ЕРСЕКА 2 МАРКЕТ",street:"ЏОН КЕНЕДИ 9А",lng:21.438527,lat:42.013307,channel:"Other Local & Tradit"},
+{id:"9500027451",name:"МА-НИТА ФРЕШ",street:"Трифун Хаџи Јанев",lng:21.461628,lat:42.003006,channel:"Other Local & Tradit"},
+{id:"9500027674",name:"ЕЛИДА 28",street:"Лисец",lng:21.488710,lat:41.967282,channel:"Other Local & Tradit"},
+{id:"9500027944",name:"РИСАЛ 5 СТАРА РАМПА",street:"Виктор Иго",lng:21.436073,lat:41.985799,channel:"Other Local & Tradit"},
+{id:"9500028083",name:"АБ МАРКЕТ",street:"АЛИЈА АВДОВИЌ 39",lng:21.514011,lat:42.019066,channel:"Other Local & Tradit"},
+{id:"9500028110",name:"ЕЛИДА-29",street:"Бане Андреев",lng:21.485522,lat:41.975862,channel:"Other Local & Tradit"},
+{id:"9500028118",name:"Е-МАРКЕТ 1",street:"НИКОЛА МАЛЕШЕВСКИ",lng:21.432698,lat:42.016931,channel:"Other Local & Tradit"},
+{id:"9500028186",name:"МАРКЕТ-МАНГО",street:"1 222",lng:21.604540,lat:41.872159,channel:"Other Local & Tradit"},
+{id:"9500028201",name:"АССТОР ПАРТИЗАНСКА",street:"Булевар Партизански одреди",lng:21.395783,lat:42.002875,channel:"Other Local & Tradit"},
+{id:"9500028202",name:"АССТОР 14 МАРКЕТ СИТИ",street:"ВОЛГОГРАДСКА 3",lng:21.386417,lat:42.005636,channel:"Other Local & Tradit"},
+{id:"9500028421",name:"МЕЏИК ФРУТ",street:"1519 71/Л.5",lng:21.473745,lat:41.962106,channel:"Other Local & Tradit"},
+{id:"9500028450",name:"МАРВИК МАРКЕТ РАДИШАНИ",street:"УЛ.15. РАДИШАНИ 20А",lng:21.445396,lat:42.073316,channel:"Other Local & Tradit"},
+{id:"9500028616",name:"ЦЕНА ТРЕЈД 2014 ДООЕЛ",street:"БУЛЕВАР 8-МИ СЕПТЕМВРИ БР.7",lng:21.403939,lat:41.999241,channel:"Other Local & Tradit"},
+{id:"9500028670",name:"РАЛЕКС МАРКЕТ БР.6",street:"Улица 101 БР.2",lng:21.354175,lat:42.044001,channel:"Other Local & Tradit"},
+{id:"9500028747",name:"БЛОК 19 2021",street:"ВЕРА ЈОЦИЌ 19/1",lng:21.439670,lat:41.980031,channel:"Other Local & Tradit"},
+{id:"9500028748",name:"ДАЛИ Р ЕКСПОРТ 2",street:"7 136",lng:21.469167,lat:41.916188,channel:"Other Local & Tradit"},
+{id:"9500028796",name:"ДБ СТАИЛ МАРКЕТ",street:"14 26",lng:21.376541,lat:42.028868,channel:"Other Local & Tradit"},
+{id:"9500028828",name:"РИСАЛ 6   МОСТ МАРКЕТ",street:"СОЊЕ БР.17",lng:21.378337,lat:41.939841,channel:"Other Local & Tradit"},
+{id:"9500029095",name:"АНИ-ПРОМ 2021",street:"ВЛАДИМИР КОМАРОВ БР.1/4",lng:21.449792,lat:41.992097,channel:"Other Local & Tradit"},
+{id:"9500029254",name:"РИСАЛ 7 ПРИПОР",street:"ХРИСТО ТАТАРЧЕВ 79/ЛОК1",lng:21.441736,lat:41.958321,channel:"Other Local & Tradit"},
+{id:"9500029328",name:"ЛЕНИ ТРЕЈД ЧЕНТО",street:"ПАЛМИРО ТОЛЈАТИ 91Б",lng:21.498213,lat:42.001463,channel:"Other Local & Tradit"},
+{id:"9500029396",name:"ФИЛПЕЈ 1",street:"ИВАН ХАЏИНИКОЛОВ 55",lng:21.514333,lat:41.939996,channel:"Other Local & Tradit"},
+{id:"9500030073",name:"АССТОР МАРКЕТ МИЧУРИН",street:"Симеон Кавракиров 13/ЗГ.1ВЛ",lng:21.450587,lat:41.987345,channel:"Other Local & Tradit"},
+{id:"9500030150",name:"ЈОРДАН 2 К.В",street:"ТОДОР ПАНИЦА 7-ЛОКАЛ 10",lng:21.440628,lat:41.980560,channel:"Other Local & Tradit"},
+{id:"9500030222",name:"АССТОР МАРКЕТ МАЏАРИ",street:"ВЕРА РАДОСАВЉЕВИЌ 106",lng:21.500135,lat:41.993356,channel:"Other Local & Tradit"},
+{id:"9500030276",name:"ДЕВИАЛ ДД",street:"НОВ ЖИВОТ 45",lng:21.424956,lat:42.043266,channel:"Other Local & Tradit"},
+{id:"9500030277",name:"АГРОВИТА 2022",street:"Булевар Свети Климент Охридски 13",lng:21.426440,lat:41.999498,channel:"Other Local & Tradit"},
+{id:"9500030310",name:"АССТОР МАРКЕТ ЃОРЧЕ",street:"Ѓорче 36/3 -1",lng:21.362390,lat:42.003032,channel:"Other Local & Tradit"},
+{id:"9500030395",name:"ДИЕМ Г.П КИСЕЛА ВОДА",street:"БОРИС ТРАЈКОВСКИ 54",lng:21.436745,lat:41.987447,channel:"Other Local & Tradit"},
+{id:"9500030532",name:"АМ ЈУНАЈТЕД ТОБАКО ДОО",street:"Штипска 37А",lng:21.445843,lat:41.998288,channel:"Other Local & Tradit"},
+{id:"9500030566",name:"ЗОЛЕВ КОМЕРЦ ДООЕЛ",street:"УЛ.5 БР.82",lng:21.409995,lat:42.035858,channel:"Other Local & Tradit"},
+{id:"9500030759",name:"РИСАЛ 9   СОПИШТЕ",street:"УЛ 1 БР 7",lng:21.418455,lat:41.949734,channel:"Other Local & Tradit"},
+{id:"9500030958",name:"ЦЕНТРО ПАРТИЗАНСКА (ЦЕНТАР)",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 40",lng:21.422348,lat:41.999029,channel:"Other Local & Tradit"},
+{id:"9500030999",name:"Елида 30",street:"ЈАНЕ САНДАНСКИ 113 Б",lng:21.470191,lat:41.984179,channel:"Other Local & Tradit"},
+{id:"9500031195",name:"ТРЕНД СТОРЕ",street:"КЛИНСКА ЛЕСА 10 А",lng:21.436822,lat:42.010523,channel:"Other Local & Tradit"},
+{id:"9500031204",name:"ТВИНС БРАДРС ДООЕЛ",street:"ПАВЛЕ БОЖИНОВ 154",lng:21.493680,lat:42.036871,channel:"Other Local & Tradit"},
+{id:"9500031463",name:"МАРКЕТ МАНГО 2 ЗЕЛЕНИКОВО",street:"УЛ.1 32",lng:21.601061,lat:41.873340,channel:"Other Local & Tradit"},
+{id:"9500032160",name:"ЕЛИТА АГ",street:"2 25",lng:21.209513,lat:41.977608,channel:"Other Local & Tradit"},
+{id:"9500032254",name:"РИСАЛ 10 ПИНТИЈА",street:"САСА 40//ЛОК5",lng:21.486711,lat:41.953852,channel:"Other Local & Tradit"},
+{id:"9500032314",name:"АЛИУ КОМПАНИ",street:"УЛ.ПЕЌСКА ЛИГА БЕСА БЕС 30А",lng:21.317863,lat:42.001456,channel:"Other Local & Tradit"},
+{id:"9500032523",name:"ФЕЛИКС МАРКЕТ",street:"УЛ.10 БР.2 2",lng:21.535813,lat:41.952519,channel:"Other Local & Tradit"},
+{id:"9500032568",name:"ДОРА КОМПАНИ ДООЕЛ",street:"ЖАН ЖОРЕС 129/5-3",lng:21.512270,lat:41.995978,channel:"Other Local & Tradit"},
+{id:"9500032584",name:"ТИМ ВОЈЧЕСКИ ДОО",street:"3 14",lng:21.533486,lat:41.955899,channel:"Other Local & Tradit"},
+{id:"9500032630",name:"ГАМА МАРКЕТ 2",street:"МЕТОДИЈА МИТЕВСКИ 8",lng:21.432582,lat:42.020169,channel:"Other Local & Tradit"},
+{id:"9500032657",name:"ДН 11 ДН",street:"РУДО 33",lng:21.447876,lat:42.035469,channel:"Other Local & Tradit"},
+{id:"9500033729",name:"РАЛЕКС 5",street:"4 1А",lng:21.379902,lat:42.025921,channel:"Other Local & Tradit"},
+{id:"9500034373",name:"ПЛУС МАРКЕТ ДОО",street:"Улица 10 179",lng:21.567726,lat:42.022834,channel:"Other Local & Tradit"},
+{id:"9500035040",name:"ЕКО НАС",street:"ИНТЕРНАЦИОНАЛНИ БРИГАДИ 2",lng:21.455878,lat:41.996808,channel:"Other Local & Tradit"},
+{id:"9500035070",name:"РЕЈСЕР СТУДЕНИЧАНИ",street:"НАСЕЛЕНО МЕСТО БЕЗ УЛИЧЕН СИСТЕМ ББ",lng:21.531830,lat:41.925527,channel:"Other Local & Tradit"},
+{id:"9500035163",name:"АЛЕК НИКОЛИЈА 2",street:"1 41",lng:21.646535,lat:41.975716,channel:"Other Local & Tradit"},
+{id:"9500035260",name:"ЛОКАЛ МАРКЕТ ЕЛЕНА -Г ДООЕЛ",street:"БОРИС ТРАЈКОВСКИ 164",lng:21.467309,lat:41.968584,channel:"Other Local & Tradit"},
+{id:"9500035321",name:"ДН 11 ДН МАТАК",street:"Љуба Ивановиќ 51 Б",lng:21.444875,lat:42.023142,channel:"Other Local & Tradit"},
+{id:"9500035386",name:"М СТОРЕ МАРКЕТ",street:"ЃЕРЃ КАСТРИОТ СКЕНДЕРБЕГ ГЛУМОВО 2",lng:21.307969,lat:41.981758,channel:"Other Local & Tradit"},
+{id:"9500035422",name:"НЕГРО ГОРА ДООЕЛ",street:"5 3",lng:21.406765,lat:42.095085,channel:"Other Local & Tradit"},
+{id:"9500035471",name:"РАЛЕКС МАРКЕТ 3",street:"ЃОРЧЕ ПЕТЕОВ 60",lng:21.355105,lat:42.006600,channel:"Other Local & Tradit"},
+{id:"9500035472",name:"РАЛЕКС МАРКЕТ 7",street:"ПАРИСКА 15",lng:21.400845,lat:42.000786,channel:"Other Local & Tradit"},
+{id:"9500035683",name:"ЏЕНА-ММ",street:"ЏОН КЕНЕДИ 5",lng:21.442902,lat:42.013793,channel:"Other Local & Tradit"},
+{id:"9500035721",name:"СУПЕР ТРИО",street:"Ѓорги поп Христов 58/А",lng:21.434897,lat:42.015877,channel:"Other Local & Tradit"},
+{id:"9500035731",name:"АССТОР ГЕ-ГЕ",street:"Ге-Ге 16 Б",lng:21.358149,lat:42.015777,channel:"Other Local & Tradit"},
+{id:"9500035805",name:"МАРКЕТ ЈОР-ДАН 4",street:"1 (КОЛ. ИДРИЗОВО) 15/2-1",lng:21.562590,lat:41.962811,channel:"Other Local & Tradit"},
+{id:"9500035952",name:"БУЛИ МАРКЕТ",street:"Улица 1 108",lng:21.311457,lat:42.010936,channel:"Other Local & Tradit"},
+{id:"9500036202",name:"ТП М.С.М-КИДС СКОПЈЕ",street:"САСА 7",lng:21.485327,lat:41.954967,channel:"Other Local & Tradit"},
+{id:"9500036206",name:"РИСАЛ ПОСЛЕДНА 24",street:"ХРИСТО ТАТАРЧЕВ 34",lng:21.448133,lat:41.968950,channel:"Other Local & Tradit"},
+{id:"9500036260",name:"ЈОУР ТОБАКО",street:"БУТЕЛСКА 121",lng:21.447542,lat:42.038466,channel:"Other Local & Tradit"},
+{id:"9500036322",name:"БИ-ГО МАРКЕТ",street:"АДЕМ ДЕМАЧИ 5",lng:21.440364,lat:42.021992,channel:"Other Local & Tradit"},
+{id:"9500036414",name:"БГС ТРАДЕ ДООЕЛ СКОПЈЕ",street:"4 ЈУЛИ 51",lng:21.349712,lat:42.008880,channel:"Other Local & Tradit"},
+{id:"9500036433",name:"ДАФИ КОМЕРЦ",street:"O2062 45",lng:21.511075,lat:42.051053,channel:"Other Local & Tradit"},
+{id:"9500036495",name:"ДИМИ-ИВ ФООД ДООЕЛ",street:"ЈУРИЈ ГАГАРИН 149/3-ЛОК7",lng:21.389967,lat:41.997596,channel:"Other Local & Tradit"},
+{id:"9500036570",name:"МАРКЕТ МАНГО 3",street:"1 58",lng:21.617220,lat:41.873619,channel:"Other Local & Tradit"},
+{id:"9510000078",name:"РАЛЕКС МАРКЕТ 8 ГЕ-ГЕ",street:"Лука Геров 35",lng:21.353588,lat:42.019433,channel:"Other Local & Tradit"},
+{id:"9510000209",name:"СТАНИЦА МАРКОВ 1",street:"УЛИЦА 1 1000",lng:21.377572,lat:41.939531,channel:"Other Local & Tradit"},
+{id:"9510000238",name:"АРБАЛИНА",street:"УЛИЦА АЛЕКСАНДАР БУЈНОВ 3",lng:21.439599,lat:42.029785,channel:"Other Local & Tradit"},
+{id:"9510000417",name:"РИО",street:"Киро Крстевски Платник 52 А",lng:21.420164,lat:41.995877,channel:"Other Local & Tradit"},
+{id:"9510000537",name:"Ерсин 2020",street:"БОРИС ТРАЈКОВСКИ 304",lng:21.496070,lat:41.945020,channel:"Other Local & Tradit"},
+{id:"9510000784",name:"Мини Маркет Седум Дена",street:"УЛИЦА 500 1",lng:21.524399,lat:41.983367,channel:"Other Local & Tradit"},
+{id:"9510000919",name:"МЕТРО ПЛУС ШУТО ОРИЗАРИ",street:"Хаџи Јован Шишко 576",lng:21.431921,lat:41.996181,channel:"Other Local & Tradit"},
+{id:"9510000932",name:"ЕФЕ ТРЕЈД",street:"Индира Ганди 1",lng:21.423183,lat:42.029864,channel:"Other Local & Tradit"},
+{id:"9510000970",name:"ЕАЗ КОМПАНИ",street:"УЛИЦА 9 24",lng:21.508886,lat:42.021264,channel:"Other Local & Tradit"},
+{id:"9500000260",name:"ТОП ТРАДЕ",street:"СКУПИ",lng:21.395616,lat:42.014716,channel:"Other Petroleum-Food"},
+{id:"9500002115",name:"НИКОЛ КОМЕРЦ",street:"РАДИЌАНСКА 2А",lng:21.451810,lat:42.055846,channel:"Other Petroleum-Food"},
+{id:"9500003836",name:"АВТОЦЕНТАР",street:"БУЛЕВАР АЛЕКСАНДАР МАКЕДОНСКИ",lng:21.488682,lat:42.003428,channel:"Other Petroleum-Food"},
+{id:"9500003866",name:"СУПЕРТРЈД КИСЕЛА ВОДА",street:"БОРИС ТРАЈКОВСКИ 68",lng:21.454197,lat:41.974765,channel:"Other Petroleum-Food"},
+{id:"9500003916",name:"ДИМГОР ПЕТРОЛ",street:"С. ГОРНО КОЊАРЕ ББ",lng:21.728216,lat:41.976524,channel:"Other Petroleum-Food"},
+{id:"9500004117",name:"ЕУРО АКТИВА",street:"ЈАДРАНСКА МАГИСТРАЛА 114",lng:21.390767,lat:42.043461,channel:"Other Petroleum-Food"},
+{id:"9500005293",name:"БЕРОВИЌ ПЕТРОЛ",street:"С.БАТИНЦИ 8",lng:21.496476,lat:41.931817,channel:"Other Petroleum-Food"},
+{id:"9500009243",name:"МЕЛИ ТРЕЈД",street:"УЛ.1721 БР.10 САРАЈ",lng:21.317240,lat:41.992748,channel:"Other Petroleum-Food"},
+{id:"9500012593",name:"МРГ ПЕТРОЛ",street:"A1",lng:21.654636,lat:41.904567,channel:"Other Petroleum-Food"},
+{id:"9500016450",name:"КРОН-ОИЛ",street:"СПОРТСКИ АЕРОДРОМ СТЕНКОВЕЦ1А",lng:21.376601,lat:42.059110,channel:"Other Petroleum-Food"},
+{id:"9500021914",name:"ОКТАН 7 НОВО ЛИСИЧЕ",street:"BULEVAR ASNOM​",lng:21.474464,lat:41.987749,channel:"Other Petroleum-Food"},
+{id:"9500022472",name:"КУВАЈТ ПЕТРОЛ - ОИЛ ДООЕЛ",street:"СТУДЕНИЧАНИ 3/ 61",lng:21.538276,lat:41.928032,channel:"Other Petroleum-Food"},
+{id:"9500022870",name:"ПЕТРОЛ-ОИЛ КОМПАНИ",street:"УЛ. 1 ВОЛКОВО 3Б",lng:21.350307,lat:42.025184,channel:"Other Petroleum-Food"},
+{id:"9500023257",name:"ИНТЕР-ОИЛ",street:"УЛ.34 ИЛИНДЕН БР.24",lng:21.543320,lat:41.994379,channel:"Other Petroleum-Food"},
+{id:"9500023894",name:"ДИЗЕЛ ПЛУС ЛТД",street:"КАЧАНИЧКИ ПАТ 5",lng:21.365066,lat:42.070740,channel:"Other Petroleum-Food"},
+{id:"9500024559",name:"СУПЕР ОИЛ-ЕСИ ДООЕЛ 5",street:"БОРИС ТРАЈКОВСКИ 53",lng:21.545871,lat:42.022033,channel:"Other Petroleum-Food"},
+{id:"9500024776",name:"ПАЦИ ПЕТРОЛ ДООЕЛ СКОПЈЕ",street:"ГОРНО ЛИСИЧЕ 232",lng:21.500700,lat:41.963667,channel:"Other Petroleum-Food"},
+{id:"9500024819",name:"ДАДИ КОМПАНИ",street:"УЛ. 1 С.КАДИНО ББ",lng:21.594144,lat:41.962261,channel:"Other Petroleum-Food"},
+{id:"9500024977",name:"НАС МБД",street:"ЛУКА ГЕРОВ 4 6",lng:21.359080,lat:42.014907,channel:"Other Petroleum-Food"},
+{id:"9500026107",name:"СУПЕР ОИЛ ЈУРУМЛЕРИ",street:"Ул1 Бр 1",lng:21.553464,lat:41.965254,channel:"Other Petroleum-Food"},
+{id:"9500026963",name:"ОКТА 19",street:"АЛЕКСАНДАР МАКЕДОНСКИ 1000",lng:21.455946,lat:41.999809,channel:"Other Petroleum-Food"},
+{id:"9500027427",name:"ВИЕНА ПЕТРОЛ",street:"Булевар Киро Глигоров",lng:21.472536,lat:41.997112,channel:"Other Petroleum-Food"},
+{id:"9500028082",name:"ИНТЕР-ОИЛ МАЏАРИ",street:"БЛАГОЈА СТЕФКОВСКИ 114Б",lng:21.504314,lat:41.994313,channel:"Other Petroleum-Food"},
+{id:"9500028830",name:"БОРА ПЕТРОЛ",street:"R1206 124",lng:21.322867,lat:41.995800,channel:"Other Petroleum-Food"},
+{id:"9500030615",name:"СИ ПЕТРОЛ ДООЕЛ",street:"Александар Урдаревски 24А",lng:21.431759,lat:42.047357,channel:"Other Petroleum-Food"},
+{id:"9500030645",name:"ЛИ-РЕ ДООЕЛ",street:"1 1",lng:21.548550,lat:41.967713,channel:"Other Petroleum-Food"},
+{id:"9500030779",name:"КРОН-ОИЛ ДОО",street:"БЛАГОЈА СТЕФКОВСКИ 2А",lng:21.498459,lat:41.996359,channel:"Other Petroleum-Food"},
+{id:"9500031241",name:"ЕКО ПЕТРОЛ",street:"13 1",lng:21.531021,lat:41.977787,channel:"Other Petroleum-Food"},
+{id:"9500031308",name:"ХИБ ПЕТРОЛ ГРУБ ДООЕЛ",street:"КАЧАНИЧКИ ПАТ ББ",lng:21.396703,lat:42.038943,channel:"Other Petroleum-Food"},
+{id:"9500032178",name:"ХИ КОМПАНИ ДООЕЛ",street:"КАЧАНИЧКИ ПАТ ББ",lng:21.365062,lat:42.070762,channel:"Other Petroleum-Food"},
+{id:"9500033783",name:"ПАМА МАРКЕТИ БР3 ЧЕНТО",street:"Методија Андонов Ченто 78",lng:21.501955,lat:42.005097,channel:"Other Petroleum-Food"},
+{id:"9500034509",name:"ПАМА МАРКЕТИ АЕРОДРОМ",street:"БУЛЕВАР СРБИЈА ББ",lng:21.465941,lat:41.978961,channel:"Other Petroleum-Food"},
+{id:"9500004981",name:"ТОРО",street:"КЕЈ 13-ТИ НОЕМВРИ",lng:21.435027,lat:41.995596,channel:"Pub"},
+{id:"9500021961",name:"ЦРЕША БАР",street:"РАЈКО ЖИНЗИФОВ 25",lng:21.418574,lat:41.998913,channel:"Pub"},
+{id:"9500023783",name:"СИСТЕМ ПАБ",street:"БУЛ.3-ТА. МАКЕДОНСКА БРИГАДА 43/2",lng:21.459692,lat:41.989332,channel:"Pub"},
+{id:"9500024177",name:"МВИДБ",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 21А",lng:21.423723,lat:41.998377,channel:"Pub"},
+{id:"9500024409",name:"БЕЕРТИЈА ПУБ",street:"11-ti Oktomvri​",lng:21.434137,lat:41.994117,channel:"Pub"},
+{id:"9500026650",name:"ГРАНЧЕ",street:"СВ. КИРИЛ И МЕТОДИЈ",lng:21.432594,lat:41.990000,channel:"Pub"},
+{id:"9500028012",name:"КОЛЕКТИВ ВОКС",street:"11-ti Oktomvri​",lng:21.432010,lat:41.995832,channel:"Pub"},
+{id:"9500028219",name:"ГЛУВО КУЧЕ",street:"РИСТО ШИШКОВ 25",lng:21.425940,lat:42.001708,channel:"Pub"},
+{id:"9500029482",name:"ПУБ & КИТЦХЕН (ВЛАЕ)",street:"Булевар Партизански одреди 22Б",lng:21.371847,lat:42.007196,channel:"Pub"},
+{id:"9500030370",name:"КРАШ БАР",street:"Булевар Свети Климент Охридски 18",lng:21.427336,lat:42.000569,channel:"Pub"},
+{id:"9500031214",name:"ИРСКИ ПАБ",street:"11-ti Oktomvri​ 2",lng:21.435427,lat:41.995080,channel:"Pub"},
+{id:"9500032507",name:"БЕЕР ГАРДЕН",street:"ЖИВКО ЧИНГО 5",lng:21.420535,lat:42.001119,channel:"Pub"},
+{id:"9500035198",name:"МОСА ГРУП",street:"СТОЛТЕНБЕРГОВА 2",lng:21.424064,lat:42.005508,channel:"Pub"},
+{id:"9500035434",name:"РОК КОРНЕР",street:"Булевар Јане Сандански 59 ЛОК 19",lng:21.467315,lat:41.986799,channel:"Pub"},
+{id:"9500036233",name:"ЕЛ ПРЕСИДЕНТЕ",street:"Никола Кљусев 205",lng:21.429375,lat:41.996589,channel:"Pub"},
+{id:"9500036398",name:"БЕЕР ГАРДЕН СПОРТС БАР",street:"Св. Кирил и Методиј 31",lng:21.429775,lat:41.990684,channel:"Pub"},
+{id:"9510000123",name:"АМИГО",street:"Крушевска Република (Пролет) 13",lng:21.439483,lat:41.989712,channel:"Pub"},
+{id:"9510000456",name:"БАСС ТОНЕ ПУБ",street:"Васил Главинов 7 - 2",lng:21.428002,lat:41.997015,channel:"Pub"},
+{id:"9510001102",name:"ЌОРОПИЛЕ ПУБ",street:"КЕЈ 13-ТИ НОЕМВРИ 12",lng:21.448078,lat:41.994809,channel:"Pub"},
+{id:"9500000312",name:"ГИРО МАМАС (СИТИ МОЛ)",street:"Љубљанска 4",lng:21.390832,lat:42.004833,channel:"Qsr-Other Fast Food"},
+{id:"9500001003",name:"СЕДМИЦА АЕРОДРОМ",street:"Булевар Јане Сандански",lng:21.459713,lat:41.989479,channel:"Qsr-Other Fast Food"},
+{id:"9500001158",name:"ФУД ГУРУ (ЕСТЕЛ)",street:"Пандил Шишков",lng:21.451653,lat:41.984787,channel:"Qsr-Other Fast Food"},
+{id:"9500002262",name:"ПЛАСЕТ ЧАИР",street:"Булевар Цветан Димов",lng:21.444745,lat:42.012050,channel:"Qsr-Other Fast Food"},
+{id:"9500003992",name:"СПИЦИКОТО ГТЦ",street:"11-ti Oktomvri​",lng:21.435124,lat:41.994376,channel:"Qsr-Other Fast Food"},
+{id:"9500004002",name:"МР.ШМЕК",street:"Булевар Водњанска",lng:21.421725,lat:41.991076,channel:"Qsr-Other Fast Food"},
+{id:"9500004003",name:"КАМАРАДИ",street:"Славко Јаневски ББ",lng:21.436283,lat:41.989463,channel:"Qsr-Other Fast Food"},
+{id:"9500004056",name:"ЛЕСКОВАЧКА ЛЕМИС ВЕРО",street:"Булевар Јане Сандански",lng:21.467746,lat:41.986042,channel:"Qsr-Other Fast Food"},
+{id:"9500004057",name:"ЛЕСКОВАЧКА ЛЕМИС МАЈЧИН ДОМ",street:"Мирче Ацев",lng:21.441920,lat:41.989800,channel:"Qsr-Other Fast Food"},
+{id:"9500004059",name:"БИГ БУРГЕР",street:"Вера Јоциќ",lng:21.439515,lat:41.980578,channel:"Qsr-Other Fast Food"},
+{id:"9500005003",name:"НОВ КАПРИ",street:"БУЛЕВАР ВОДЊАНСКА",lng:21.419837,lat:41.989931,channel:"Qsr-Other Fast Food"},
+{id:"9500005005",name:"МИЛЕНИУМСКИ КРСТ",street:"ВРВ ВОДНО ББ",lng:21.354539,lat:41.964310,channel:"Qsr-Other Fast Food"},
+{id:"9500005025",name:"СИТИ БУРГЕР",street:"Булевар Јане Сандански",lng:21.466857,lat:41.984729,channel:"Qsr-Other Fast Food"},
+{id:"9500005277",name:"КАЈ СВЕТО",street:"УЛ. 8 ИЛИНДЕН 66",lng:21.577609,lat:41.997037,channel:"Qsr-Other Fast Food"},
+{id:"9500006983",name:"ГИРО БЕКО",street:"Даме Груев",lng:21.428050,lat:41.994058,channel:"Qsr-Other Fast Food"},
+{id:"9500006990",name:"ПИЦА ЈАКОМО",street:"Борис Трајковски",lng:21.438444,lat:41.985551,channel:"Qsr-Other Fast Food"},
+{id:"9500009029",name:"ХИТ ЗОНА",street:"Крушевска Република (Пролет)",lng:21.445841,lat:41.991159,channel:"Qsr-Other Fast Food"},
+{id:"9500009064",name:"ПУНО",street:"Бранислав Нушиќ",lng:21.407268,lat:42.002581,channel:"Qsr-Other Fast Food"},
+{id:"9500012655",name:"МАРАНА",street:"Булевар Водњанска",lng:21.420669,lat:41.990490,channel:"Qsr-Other Fast Food"},
+{id:"9500012745",name:"ШАМПИОН 1",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ",lng:21.364564,lat:42.008845,channel:"Qsr-Other Fast Food"},
+{id:"9500017709",name:"АЛЕКСАНДРИЈА",street:"11-ТИ ОКТОМВРИ",lng:21.433372,lat:41.991290,channel:"Qsr-Other Fast Food"},
+{id:"9500022489",name:"ХАМЗА ДОНЕЛ",street:"Крушевска Република (Пролет)",lng:21.445710,lat:41.991338,channel:"Qsr-Other Fast Food"},
+{id:"9500023149",name:"КАЈ КАСПЕР",street:"ХРИСТО ТАТАРЧЕВ",lng:21.440991,lat:41.980375,channel:"Qsr-Other Fast Food"},
+{id:"9500023248",name:"БУРГЕР БАР КОРНЕР",street:"ДИМИТАР ГУШТАНОВ 28",lng:21.515815,lat:41.939929,channel:"Qsr-Other Fast Food"},
+{id:"9500023419",name:"ТЕТЕКС (КЕЈ)",street:"КЕЈ 13ТИ НОЕМВРИ ББ",lng:21.436484,lat:41.994789,channel:"Qsr-Other Fast Food"},
+{id:"9500024015",name:"КУЛ СОКЕР",street:"Димо Хаџи Димов 10",lng:21.443929,lat:41.972509,channel:"Qsr-Other Fast Food"},
+{id:"9500024074",name:"КАЈ СТАРА ЛИПА",street:"11-ти Октомври 74",lng:21.434396,lat:41.990744,channel:"Qsr-Other Fast Food"},
+{id:"9500024120",name:"ПИЦА ПЛЕЈС",street:"Булевар Кузман Јосифовски Питу",lng:21.441609,lat:41.993132,channel:"Qsr-Other Fast Food"},
+{id:"9500024442",name:"РЕНДЕ",street:"ВОЛГОГРАДСКА 7",lng:21.385284,lat:42.005751,channel:"Qsr-Other Fast Food"},
+{id:"9500024695",name:"РУМИ",street:"Руди Чајавец",lng:21.452442,lat:41.987610,channel:"Qsr-Other Fast Food"},
+{id:"9500025385",name:"ТОТО ДЕЈЛИ",street:"Никола Тримпаре",lng:21.422752,lat:41.996919,channel:"Qsr-Other Fast Food"},
+{id:"9500025730",name:"КОМПАНИЈА БАБУН",street:"ул.1 бр.103",lng:21.418129,lat:41.949753,channel:"Qsr-Other Fast Food"},
+{id:"9500025733",name:"ЕМ-МЕР",street:"ДИМИТРИЕ ЧУПОВСКИ 46-Б",lng:21.516037,lat:41.938402,channel:"Qsr-Other Fast Food"},
+{id:"9500025956",name:"ПИЦА СИТИ ВИЗБЕГОВО",street:"КАЧАНИЧКИ ПАТ 150",lng:21.394650,lat:42.041187,channel:"Qsr-Other Fast Food"},
+{id:"9500026065",name:"БЕСТ ФУД ГРУП",street:"Јуриј Гагарин",lng:21.410065,lat:41.994686,channel:"Qsr-Other Fast Food"},
+{id:"9500026108",name:"СЕНДВИЧАРА МЕРАК",street:"БЛАГОЈА СТЕВКОВСКИ 1Б",lng:21.478984,lat:42.003325,channel:"Qsr-Other Fast Food"},
+{id:"9500026580",name:"ХАМЗА ДОНЕР (ЧАИР)",street:"Македонско-косовска бригада",lng:21.430917,lat:42.022853,channel:"Qsr-Other Fast Food"},
+{id:"9500026761",name:"ТОП ХИЛ",street:"БУЛЕВАР КОЧО РАЦИН 5",lng:21.438670,lat:41.992148,channel:"Qsr-Other Fast Food"},
+{id:"9500026818",name:"БУРГЕРСЛАТ",street:"Борис Трајковски",lng:21.437355,lat:41.986161,channel:"Qsr-Other Fast Food"},
+{id:"9500026928",name:"ПИЦА ШЕФ",street:"БУЛЕВАР ЈАНЕ САНДАНСКИ 78Л/9",lng:21.465204,lat:41.984161,channel:"Qsr-Other Fast Food"},
+{id:"9500027214",name:"БРАВИА",street:"ДАМЕ ГРУЕВ 14",lng:21.428381,lat:41.993246,channel:"Qsr-Other Fast Food"},
+{id:"9500027344",name:"ФАСТ ФУД СТУДИО (ЛЕПТОКАРИЈА)",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ",lng:21.400126,lat:42.003032,channel:"Qsr-Other Fast Food"},
+{id:"9500027364",name:"БИАКЛОС",street:"ДАНЕ КРАПЧЕВ 27",lng:21.416229,lat:42.000862,channel:"Qsr-Other Fast Food"},
+{id:"9500027795",name:"Д КИЧЕН",street:"ГАВРИЛ КОНСТАНТИНОВИЌ 62",lng:21.481178,lat:41.979619,channel:"Qsr-Other Fast Food"},
+{id:"9500027940",name:"СЕНДВИЧАРА БОШКОВСКИ (ВЛАЕ)",street:"ПЕТАР ЧАУЛЕВ",lng:21.373812,lat:42.007387,channel:"Qsr-Other Fast Food"},
+{id:"9500027977",name:"МОРЕМАНИА",street:"Булевар Блаже Конески",lng:21.428237,lat:41.998266,channel:"Qsr-Other Fast Food"},
+{id:"9500028198",name:"СПЕЈС БУРГЕР",street:"Димитрие Чуповски",lng:21.425458,lat:41.995464,channel:"Qsr-Other Fast Food"},
+{id:"9500028233",name:"МЕЏИК СЕНДВИЧАРА (КАРПОШ 3)",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ",lng:21.401302,lat:42.003266,channel:"Qsr-Other Fast Food"},
+{id:"9500028266",name:"ТП ТЕТЕКС 2019 ЌЕБАПЧИЛНИЦА СКОПЈЕ",street:"ХРИСТИЈАН ТОДОРОВСКИ - КАРПОШ 14",lng:21.447522,lat:42.017088,channel:"Qsr-Other Fast Food"},
+{id:"9500028709",name:"ТЕТЕКС УЛ МАКЕДОНИЈА",street:"МАКЕДОНИЈА 11А",lng:21.431156,lat:41.993964,channel:"Qsr-Other Fast Food"},
+{id:"9500029238",name:"ПИЦА РИКАРДО",street:"БУЛ. ЈАНЕ САНДАНСКИ 82/18",lng:21.465541,lat:41.985189,channel:"Qsr-Other Fast Food"},
+{id:"9500029282",name:"ТЕТЕКС ЃОРЧЕ",street:"4. ЈУЛИ 47",lng:21.353049,lat:42.008809,channel:"Qsr-Other Fast Food"},
+{id:"9500029422",name:"ФЕТ КИЧЕН",street:"ВЛАДИМИР ПОЛЕЖИНОВСКИ 23",lng:21.416352,lat:41.998452,channel:"Qsr-Other Fast Food"},
+{id:"9500029503",name:"АРТ ОФ ГИРОС (ИСТ ГЕЈТ)",street:"БЕЛАСИЦА 2 25/1",lng:21.451058,lat:41.997374,channel:"Qsr-Other Fast Food"},
+{id:"9500029522",name:"ГРИН САЛАД (ИСТ ГЕЈТ)",street:"БЕЛАСИЦА 2",lng:21.450804,lat:41.997158,channel:"Qsr-Other Fast Food"},
+{id:"9500029539",name:"ПЛАСЕТ (ИСТ ГЕЈТ)",street:"БЕЛАСИЦА 2",lng:21.450959,lat:41.997079,channel:"Qsr-Other Fast Food"},
+{id:"9500029586",name:"УСТА ДОНЕРЏИ ИСТ ГЕЈТ",street:"БЕЛАСИЦА БР.2",lng:21.452058,lat:41.996947,channel:"Qsr-Other Fast Food"},
+{id:"9500029616",name:"ТВИГИ БИСЕР",street:"БУЛ. ЈАНЕ САНДАНСКИ 82, 9А/10",lng:21.465508,lat:41.985472,channel:"Qsr-Other Fast Food"},
+{id:"9500029937",name:"ТП СЕНДВИЧАРА - 7 ПОДРУЖНИЦА 5",street:"БУЛЕВАР АЛЕКСАНДАР МАКЕДОНСКИ 30",lng:21.478391,lat:42.003669,channel:"Qsr-Other Fast Food"},
+{id:"9500029967",name:"ДЕСТАН (ИСТ ГЕЈТ)",street:"БЕЛАСИЦА 2-К1.23",lng:21.450952,lat:41.997106,channel:"Qsr-Other Fast Food"},
+{id:"9500029981",name:"ЗВЕЗДЕН ОКЕАН РАМСТОР",street:"СВ. КИРИЛ И МЕТОДИЈ 13",lng:21.427555,lat:41.991529,channel:"Qsr-Other Fast Food"},
+{id:"9500030000",name:"ЗВЕЗДЕН ОКЕАН ЛИУ СИТИ МОЛ",street:"ЉУБЉАНСКА 4 СИТИ МОЛ",lng:21.391905,lat:42.004396,channel:"Qsr-Other Fast Food"},
+{id:"9500030011",name:"НАЗ-БУРГЕР",street:"Железничка 50А",lng:21.429523,lat:41.989103,channel:"Qsr-Other Fast Food"},
+{id:"9500030043",name:"ТИНЕКС ТУ ГОУ ЛИСА",street:"БУЛЕВАР ВИДОЕ СМИЛЕВСКИ БАТО 8 2",lng:21.472718,lat:41.981325,channel:"Qsr-Other Fast Food"},
+{id:"9500030126",name:"МАНЧИС",street:"БУЛ. ЈАНЕ САНДАНСКИ 6А-2",lng:21.453017,lat:41.987768,channel:"Qsr-Other Fast Food"},
+{id:"9500030315",name:"СЕНДВИЧАРА КАЈ ЏЕК",street:"1 95",lng:21.617721,lat:41.937877,channel:"Qsr-Other Fast Food"},
+{id:"9500030331",name:"ГИРО ХАУС",street:"Булевар Партизански одреди 44/А",lng:21.425082,lat:41.997897,channel:"Qsr-Other Fast Food"},
+{id:"9500030534",name:"ПЕТКА ПЛУС (КАПИШТЕЦ)",street:"Булевар Партизански одреди 19",lng:21.412316,lat:42.000603,channel:"Qsr-Other Fast Food"},
+{id:"9500030580",name:"СЕНДВИЧАРА 5-КА",street:"БУЛ. ВИДОЕ СМИЛЕВСКИ БАТО 85/2",lng:21.480408,lat:41.982129,channel:"Qsr-Other Fast Food"},
+{id:"9500030809",name:"ПИЦА МОРЕТИ",street:"БОЈМИЈА БР 6-1/2",lng:21.448716,lat:41.991975,channel:"Qsr-Other Fast Food"},
+{id:"9500030915",name:"ЕВЕРЕСТ (ВЕРО ЏАМБО)",street:"Булевар Кузман Јосифовски Питу 1",lng:21.442199,lat:41.992982,channel:"Qsr-Other Fast Food"},
+{id:"9500030991",name:"ТОННИС БУРГЕР",street:"ВАСИЛ ЃОРГОВ 20Б-ЛОК18",lng:21.415946,lat:41.993070,channel:"Qsr-Other Fast Food"},
+{id:"9500031130",name:"ДОНЕР&БУРГЕР МЕЏИК",street:"БОРИС ТРАЈКОВСКИ 318А",lng:21.497373,lat:41.943390,channel:"Qsr-Other Fast Food"},
+{id:"9500031131",name:"ЧОКО ХАУС (СИТИ МОЛ)",street:"ЉУБЉАНСКА 4 А1/2",lng:21.392267,lat:42.004326,channel:"Qsr-Other Fast Food"},
+{id:"9500031224",name:"ХАМЗА РЕКОРД",street:"ДИМИТРИЕ ЧУПОВСКИ 1А",lng:21.431248,lat:41.994277,channel:"Qsr-Other Fast Food"},
+{id:"9500031259",name:"ВЕРОНА АЕРОДРОМ",street:"КОСТА НОВАКОВИЌ 17/2, 5",lng:21.454904,lat:41.983781,channel:"Qsr-Other Fast Food"},
+{id:"9500031339",name:"ПИЦЕРИЈА МЕРСИ",street:"ЌЕМАЛ СЕЈФУЛА 10",lng:21.443718,lat:42.014299,channel:"Qsr-Other Fast Food"},
+{id:"9500031394",name:"OЉО’С СТРИТ",street:"Михаил Цоков 25",lng:21.421723,lat:42.002263,channel:"Qsr-Other Fast Food"},
+{id:"9500032199",name:"ТЕТЕКС ЧЕНТО",street:"Маџари ББ",lng:21.503956,lat:42.005023,channel:"Qsr-Other Fast Food"},
+{id:"9500032367",name:"БИМ-МАКС ДОО",street:"БУЛЕВАР ЈАНЕ САНДАНСКИ ББ",lng:21.460658,lat:41.989257,channel:"Qsr-Other Fast Food"},
+{id:"9500032378",name:"АМАНТИ ДОО",street:"БЕЛАСИЦА 2",lng:21.452182,lat:41.997971,channel:"Qsr-Other Fast Food"},
+{id:"9500032591",name:"ГИРО МАМАС (ДАЈМОНД МОЛ)",street:"СВ. КИРИЛ И МЕТОДИЈ 11",lng:21.430108,lat:41.990612,channel:"Qsr-Other Fast Food"},
+{id:"9500032603",name:"ПЕТЛЕ",street:"29-ти Ноември 35A",lng:21.417607,lat:42.000023,channel:"Qsr-Other Fast Food"},
+{id:"9500032715",name:"ОАЗА ТОБАКО",street:"МАКЕДОНСКО-КОСОВСКА БРИГАДА 10 2",lng:21.386450,lat:42.046702,channel:"Qsr-Other Fast Food"},
+{id:"9500033278",name:"КИСМИ (ТАФТАЛИЏЕ)",street:"Московска 63",lng:21.389693,lat:42.002306,channel:"Qsr-Other Fast Food"},
+{id:"9500033487",name:"БЕЈКИНГ БРЕАД ИСТ ГЕЈТ",street:"БЕЛАСИЦА 2",lng:21.452843,lat:41.997949,channel:"Qsr-Other Fast Food"},
+{id:"9500033488",name:"ЅВЕЗДЕН ОКЕАН (ИСТ ГЕЈТ)",street:"БЕЛАСИЦА 2",lng:21.451991,lat:41.997264,channel:"Qsr-Other Fast Food"},
+{id:"9500033493",name:"БЕЈКИНГ БРЕД",street:"Булевар Видое Смилевски Бато 3-2/5",lng:21.472635,lat:41.982484,channel:"Qsr-Other Fast Food"},
+{id:"9500033644",name:"ЏАНК ФУД",street:"БУЛЕВАР ИЛИНДЕН 93-1",lng:21.415428,lat:42.005826,channel:"Qsr-Other Fast Food"},
+{id:"9500033648",name:"АМАНТИ (СИТИ МОЛ)",street:"ЉУБЉАНСКА 4",lng:21.391622,lat:42.004484,channel:"Qsr-Other Fast Food"},
+{id:"9500033756",name:"УСТА ДОНЕРЏИ ДАЈМОНД",street:"Св. Кирил и Методиј 31",lng:21.429654,lat:41.990613,channel:"Qsr-Other Fast Food"},
+{id:"9500033759",name:"НУ ХАУС",street:"БЕЛАСИЦА 2",lng:21.452545,lat:41.997542,channel:"Qsr-Other Fast Food"},
+{id:"9500033781",name:"ТУ ГО БРИКОЛАЖ",street:"ПЕРО НАКОВ 108",lng:21.477253,lat:41.997240,channel:"Qsr-Other Fast Food"},
+{id:"9500033988",name:"ЧИГЌОФТЕ",street:"Казанџиска 52",lng:21.436427,lat:41.999696,channel:"Qsr-Other Fast Food"},
+{id:"9500034161",name:"БУРГЕР ЗОНЕ ГРИЛ ДООЕЛ",street:"БУЛЕВАР ЦВЕТАН ДИМОВ 96",lng:21.444558,lat:42.010879,channel:"Qsr-Other Fast Food"},
+{id:"9500034223",name:"ПЛАСЕТ УНИВЕРЗАЛНА",street:"Костурски Херои 43Б- ЛОК.3",lng:21.417238,lat:41.999615,channel:"Qsr-Other Fast Food"},
+{id:"9500034224",name:"ПЛАСЕТ БУЊАКОВЕЦ",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 26-117",lng:21.420774,lat:41.999322,channel:"Qsr-Other Fast Food"},
+{id:"9500034251",name:"ДРЕАМ ЗОНА",street:"СВ.КИРИЛ И МЕТОДИЈ 9",lng:21.430003,lat:41.990687,channel:"Qsr-Other Fast Food"},
+{id:"9500034253",name:"СЕНДВИЧАРА КАЈ ЈОЛЕ",street:"БЛАГОЈА СТЕФКОВСКИ 55",lng:21.500262,lat:41.995890,channel:"Qsr-Other Fast Food"},
+{id:"9500034268",name:"САРАЈЕВА СТЕК ХАУС (СИТИ МОЛ)",street:"ЉУБЉАНСКА 4",lng:21.392359,lat:42.004245,channel:"Qsr-Other Fast Food"},
+{id:"9500034271",name:"БЕЈКИНГ БРЕАД РЕКОРД",street:"НИКОЛА ВАПЦАРОВ 20",lng:21.429385,lat:41.995161,channel:"Qsr-Other Fast Food"},
+{id:"9500034299",name:"ПЕКАРА ЦРНИЧЕ",street:"БИХАЌКА 10Б",lng:21.430895,lat:41.986951,channel:"Qsr-Other Fast Food"},
+{id:"9500034502",name:"АНДРОМЕДА",street:"Никола Тримпаре 60",lng:21.422250,lat:41.996741,channel:"Qsr-Other Fast Food"},
+{id:"9500034738",name:"БЕЈКИНГ БРЕАД ТОБАККО 2",street:"Булевар Јане Сандански 2Б ЛОКАЛ 5",lng:21.453449,lat:41.987781,channel:"Qsr-Other Fast Food"},
+{id:"9500034746",name:"НОА ГИРАДИКО ДОО СКОПЈЕ",street:"ЊУДЕЛХИСКА 7/1",lng:21.406410,lat:41.998140,channel:"Qsr-Other Fast Food"},
+{id:"9500034749",name:"МИНИ ПАНИ РЕКОРД",street:"ДИМИТРИЕ ЧУПОВСКИ 1 ЛОКАЛ 1",lng:21.431592,lat:41.994234,channel:"Qsr-Other Fast Food"},
+{id:"9500035134",name:"МАРЧЕЛО",street:"8 15",lng:21.573879,lat:41.997359,channel:"Qsr-Other Fast Food"},
+{id:"9500035179",name:"БМ КЕТЕРИНГ",street:"1 128",lng:21.618319,lat:41.937186,channel:"Qsr-Other Fast Food"},
+{id:"9500035204",name:"АМАНТИ ЏЕВАХИР",street:"3 Македонска Бригада 20А/1",lng:21.464436,lat:41.979261,channel:"Qsr-Other Fast Food"},
+{id:"9500035506",name:"РОЈАЛ БУРГЕР (АЕРОДРОМ)",street:"БУЛ. ВИДОЕ СМИЛЕВСКИ БАТ 55-1/ЛОКАЛ",lng:21.475680,lat:41.981125,channel:"Qsr-Other Fast Food"},
+{id:"9500035756",name:"МОМЕНТ",street:"КЛЕНОЕЦ 22",lng:21.375067,lat:42.005286,channel:"Qsr-Other Fast Food"},
+{id:"9500035812",name:"АМАНТИ ЦЕНТАР",street:"МАЈКА ТЕРЕЗА 5/1-1",lng:21.423550,lat:41.991948,channel:"Qsr-Other Fast Food"},
+{id:"9500035856",name:"ИНФИНИТИ ЕНТЕРПРАЈС",street:"Христо Татарчев 1",lng:21.440705,lat:41.979584,channel:"Qsr-Other Fast Food"},
+{id:"9500035881",name:"ПИЦЕРИЈА МАТИ",street:"Петре Георгиев ББ",lng:21.439115,lat:42.003861,channel:"Qsr-Other Fast Food"},
+{id:"9500035893",name:"СМИТ",street:"ДИМЕ АНИЦИН 15 ЛОКАЛ 1",lng:21.415629,lat:41.996429,channel:"Qsr-Other Fast Food"},
+{id:"9500035916",name:"ФАТИХ БУРГЕРС ОНУР",street:"НИКОЛА КАРЕВ 22В",lng:21.445307,lat:41.991287,channel:"Qsr-Other Fast Food"},
+{id:"9500035917",name:"ЖЕШКО КОМПИРЧЕ ДООЕЛ",street:"Булевар Свети Климент Охридс 28,Л.9",lng:21.424427,lat:41.995458,channel:"Qsr-Other Fast Food"},
+{id:"9500035930",name:"СМЕШ-БУРГЕР",street:"3-ТА МАКЕДОНСКА БРИГАДА 56А",lng:21.452103,lat:41.982596,channel:"Qsr-Other Fast Food"},
+{id:"9500035932",name:"БАКЕРИ-МА РАМСТОР",street:"Св. Кирил и Методиј 1/КАТ.2",lng:21.427265,lat:41.991642,channel:"Qsr-Other Fast Food"},
+{id:"9500036021",name:"РЕСТОРАН БУРГЕРСЛАТ ДОО СКОПЈЕ",street:"Булевар Партизански одреди 28",lng:21.425407,lat:41.998726,channel:"Qsr-Other Fast Food"},
+{id:"9500036275",name:"ШТИПСКА ТРАДИЦИЈА",street:"ИВАН КОЗАРОВ 64",lng:21.439006,lat:41.982753,channel:"Qsr-Other Fast Food"},
+{id:"9500036346",name:"ЛАВ",street:"Улица 2 16",lng:21.569496,lat:41.995902,channel:"Qsr-Other Fast Food"},
+{id:"9500036606",name:"СЕНДВИЧАРА КИКИ",street:"ЏОН КЕНЕДИ 72",lng:21.444373,lat:42.013943,channel:"Qsr-Other Fast Food"},
+{id:"9510000395",name:"СНАКС",street:"ОРЦЕ НИКОЛОВ 132",lng:21.417259,lat:42.003318,channel:"Qsr-Other Fast Food"},
+{id:"9510000473",name:"ДИНЕНА ФУД",street:"ХРИСТИЈАН ТОДОРОВСКИ КАРПОШ 14",lng:21.446902,lat:42.016718,channel:"Qsr-Other Fast Food"},
+{id:"9510000535",name:"БЕСТ ТАКОС",street:"Булевар Цветан Димов 23",lng:21.442003,lat:42.007537,channel:"Qsr-Other Fast Food"},
+{id:"9510000547",name:"ДЕБАР БУРГЕР",street:"16-ТА МАКЕДОНСКА БРИГАДА 4/лам.",lng:21.460519,lat:42.003569,channel:"Qsr-Other Fast Food"},
+{id:"9510000808",name:"АНЕКС ЈУНИОР ДООЕЛ СКОПЈЕ",street:"УЛИЦА ЈАДРАНСКА МАГИСТРАЛА 79",lng:21.397679,lat:42.036878,channel:"Qsr-Other Fast Food"},
+{id:"9510000984",name:"БОКОНЧИНИ",street:"GEORGI KAZEPOV 9",lng:21.364939,lat:42.008503,channel:"Qsr-Other Fast Food"},
+{id:"9510000986",name:"ТОСТАРА ЦУЈО",street:"BULEVAR PARTIZANSKI ODREDI 130в",lng:21.373286,lat:42.007344,channel:"Qsr-Other Fast Food"},
+{id:"9510001180",name:"ПАНИНО СЕНДВИЧ ШОП",street:"БУЛЕВАР ПАРТИЗАНСКИ ОДРЕДИ 156",lng:21.369296,lat:42.008127,channel:"Qsr-Other Fast Food"},
+{id:"9510001188",name:"ТУДЕЈС ШОП",street:"МОМИН ПОТОК 118",lng:21.389295,lat:42.044330,channel:"Qsr-Other Fast Food"},
+{id:"9500000243",name:"ЕР ГРОЗ",street:"Булевар Цветан Димов",lng:21.443176,lat:42.007900,channel:"Superette"},
+{id:"9500000833",name:"S MARKET CENTO",street:"Јужноморавски Бригади​",lng:21.503077,lat:42.007008,channel:"Superette"},
+{id:"9500000847",name:"ДАРДАНИЈА",street:"Алија Авдоик 43",lng:21.514312,lat:42.019554,channel:"Superette"},
+{id:"9500000874",name:"Гиго Драчево",street:"Јустинијан 1",lng:21.507450,lat:41.938266,channel:"Superette"},
+{id:"9500000892",name:"МАСТЕР ИНТЕР АЕРОДРОМ",street:"Bulevar ASNOM​",lng:21.469389,lat:41.989664,channel:"Superette"},
+{id:"9500002029",name:"ГРИГОС ГРАДЕ 5 СТАЈКОВЦИ",street:"УЛ 6 С. СТАЈКОВЦИ 4",lng:21.514941,lat:42.027366,channel:"Superette"},
+{id:"9500002088",name:"ВАЈОТА 1",street:"СТУДЕНИЧАНСКА БР.1",lng:21.527517,lat:41.931334,channel:"Superette"},
+{id:"9500002089",name:"ВАЈОТА 2",street:"РАТКО МИТРОВИЌ 157",lng:21.522323,lat:41.937108,channel:"Superette"},
+{id:"9500002090",name:"ВАЈОТА 5",street:"РАТКО МИТРОВИЌ 14А",lng:21.510471,lat:41.939484,channel:"Superette"},
+{id:"9500002140",name:"ПИНГВИН ММ КОМПАНИ",street:"БИГЛА",lng:21.418560,lat:41.989071,channel:"Superette"},
+{id:"9500003845",name:"ВИШТИЦА КОМЕРЦ",street:"С. АРАЧИНОВО ББ",lng:21.554155,lat:42.024430,channel:"Superette"},
+{id:"9500003860",name:"ГРИГОС 6 ЦРНИЧЕ",street:"Бихаќка",lng:21.430689,lat:41.986766,channel:"Superette"},
+{id:"9500004154",name:"ДИЕМ-ГП МАРКЕТ БР. 7 ЦЕНТ(СТАДИОН)",street:"Столтенбергова",lng:21.425791,lat:42.004660,channel:"Superette"},
+{id:"9500004197",name:"МАНТРЕЈД",street:"УЛ. 4      С.ВОЛКОВО 2",lng:21.349075,lat:42.032267,channel:"Superette"},
+{id:"9500004212",name:"ЕУРО ИС ГРУП",street:"СТАР ПАТ СК-ТЕ С.АРНАКИЈА ББ",lng:21.298826,lat:41.986787,channel:"Superette"},
+{id:"9500005095",name:"НЕР КОМ",street:"ТАЛЕ РИСТОВ",lng:21.441507,lat:42.023675,channel:"Superette"},
+{id:"9500005101",name:"ГИГО РАДИШАНИ",street:"РАДИШАНСКА ББ, 1000, СКОПЈЕ",lng:21.451455,lat:42.057267,channel:"Superette"},
+{id:"9500005166",name:"ДАТИ МАРКЕТ",street:"20 С. САРАЈ 52",lng:21.326553,lat:42.000282,channel:"Superette"},
+{id:"9500005167",name:"МАРКЕТ КИКИ ЉУБЕ",street:"МОЦАРТОВА 48",lng:21.356638,lat:42.019755,channel:"Superette"},
+{id:"9500005289",name:"СУПЕР 2000 1 СТУДЕНИЧАНИ",street:"СЕЛО СТУДЕНИЧАНИ ББ",lng:21.532880,lat:41.919110,channel:"Superette"},
+{id:"9500007129",name:"ЛЕРИН ПЛУС",street:"4 ТИ ЈУЛИ ББ",lng:21.347963,lat:42.008628,channel:"Superette"},
+{id:"9500007259",name:"ДИСКОНТ М",street:"Митре Влаот",lng:21.472229,lat:41.974115,channel:"Superette"},
+{id:"9500017320",name:"ХИТ МАРКЕТ",street:"С.АРАЧИНОВО",lng:21.568439,lat:42.027287,channel:"Superette"},
+{id:"9500018015",name:"НАЈА ЦЕН МАРКЕТ ХРОМ",street:"ИСАИЈА МАЖОВСКИ 1",lng:21.370687,lat:42.004693,channel:"Superette"},
+{id:"9500018267",name:"ГРИГОС ВОЛКОВО",street:"УЛ.12 ВОЛКОВО   2",lng:21.344245,lat:42.039645,channel:"Superette"},
+{id:"9500018268",name:"ГРИГОС ГРАДЕ 8 ДАМЕ ГРУЕВ",street:"Лука Геров",lng:21.352194,lat:42.020335,channel:"Superette"},
+{id:"9500022193",name:"МАРКЕТ САРАЈ 2",street:"УЛ. 20 С. САРАЈ 80",lng:21.326191,lat:41.997733,channel:"Superette"},
+{id:"9500022556",name:"АЛЕКС-ДН КОМ",street:"УЛ. 30, БР. 84,ЉУБОТЕНСКИ ПАТ",lng:21.457280,lat:42.044393,channel:"Superette"},
+{id:"9500022662",name:"АЈАН ПЛУС",street:"Булевар Цветан Димов",lng:21.445400,lat:42.013005,channel:"Superette"},
+{id:"9500022689",name:"ДИЕМ-ГП МАРКЕТ РЖАНИЧИНО",street:"УЛ.1 ПЕТРОВЕЦ БР.95",lng:21.638896,lat:41.930336,channel:"Superette"},
+{id:"9500022896",name:"ТОЛАКС МАРКЕТ (ЦРНИЧЕ)",street:"ПАВЕЛ ШАТЕВ 13",lng:21.430629,lat:41.986727,channel:"Superette"},
+{id:"9500023117",name:"СУПЕР 2000 ХИПЕР МАРКЕТ",street:"R2131",lng:21.539188,lat:41.927762,channel:"Superette"},
+{id:"9500023242",name:"РЕЈСЕР 4",street:"УЛ.5 С. БАТИНЦИ",lng:21.484162,lat:41.924638,channel:"Superette"},
+{id:"9500023694",name:"БРЕНД МАРКЕТ",street:"2 1",lng:21.526082,lat:41.981582,channel:"Superette"},
+{id:"9500024002",name:"МС ЈУНИОР",street:"УЛ.1 НОВО СЕЛО БР.1",lng:21.353902,lat:42.028441,channel:"Superette"},
+{id:"9500024097",name:"М МЕТРО",street:"4 Dhjetori​",lng:21.443236,lat:42.020928,channel:"Superette"},
+{id:"9500024377",name:"ДАЛЕКС  ИЛИНДЕН",street:"УЛ 9  ИЛИНДЕН БР 63А",lng:21.575680,lat:41.994725,channel:"Superette"},
+{id:"9500024656",name:"ДИА ЦЕНТАР",street:"ЛАЗАР ТРПКОВСКИ 1",lng:21.436313,lat:42.017202,channel:"Superette"},
+{id:"9500024800",name:"ДАЛИ-Р ЕКСПОРТ",street:"БАТИНЦИ УЛ.7 БР.136",lng:21.478391,lat:41.919057,channel:"Superette"},
+{id:"9500025207",name:"ЈАТКОМ 1",street:"НЕЏИП ДРАГА",lng:21.433989,lat:42.022760,channel:"Superette"},
+{id:"9500025636",name:"МЕТРО ПЛУС СКОПЈЕ",street:"Павле Илиќ",lng:21.440504,lat:42.019781,channel:"Superette"},
+{id:"9500025875",name:"ВОРД МФ 2",street:"УЛ.125 БР. 5-ЧАИР",lng:21.441657,lat:42.011102,channel:"Superette"},
+{id:"9500025876",name:"ВОРД МФ 3",street:"3 67",lng:21.415442,lat:42.034499,channel:"Superette"},
+{id:"9500027135",name:"ДИА МАРКЕТ 2",street:"ФЕРИД БАЈРАМ 43А",lng:21.449111,lat:42.020981,channel:"Superette"},
+{id:"9500027269",name:"МАРКЕТ ТРУБАРЕВО",street:"УЛ.1 БР.52",lng:21.528832,lat:41.979712,channel:"Superette"},
+{id:"9500027595",name:"АЛФА-ИНВИКТА",street:"ФЕРИД БАЈРАМ 16 Б",lng:21.451766,lat:42.020056,channel:"Superette"},
+{id:"9500027716",name:"СИТИ МАРКЕТ ДОО",street:"1615 STREET​",lng:21.459581,lat:41.980431,channel:"Superette"},
+{id:"9500027884",name:"ДИСКОНТ М КИСЕЛА ВОДА",street:"Дичо Петров",lng:21.435524,lat:41.982807,channel:"Superette"},
+{id:"9500028068",name:"ДИСКОНТ ЕР-ГРОЗ 2 САРАЈ",street:"УЛ. 20 САРАЈ 124",lng:21.327252,lat:41.998617,channel:"Superette"},
+{id:"9500028318",name:"ДИМЦА",street:"ЛАЗАР ТРПOВСКИ​ 32",lng:21.434671,lat:42.019902,channel:"Superette"},
+{id:"9500029499",name:"ВАШ МАРКЕТ 2",street:"УЛ.1 85",lng:21.431785,lat:41.955937,channel:"Superette"},
+{id:"9500029922",name:"ДЕРВЕНТ ПРОДУКТ",street:"R1206 99А",lng:21.322308,lat:41.994838,channel:"Superette"},
+{id:"9500031148",name:"ДИА МАРКЕТ 3",street:"Булевар Цветан Димов 58",lng:21.444219,lat:42.009596,channel:"Superette"},
+{id:"9500031243",name:"ВИВИДЕНТ ПРОМ",street:"13 АВГУСТ 21A",lng:21.523153,lat:42.030088,channel:"Superette"},
+{id:"9500032244",name:"ЦЕНТРО (ТАФТАЛИЏЕ)",street:"Париска 40",lng:21.401085,lat:42.000785,channel:"Superette"},
+{id:"9500032301",name:"МАРКЕТ АРА",street:"2 2",lng:21.287100,lat:42.021896,channel:"Superette"},
+{id:"9500032546",name:"ММ ГРУПС ИНВЕСТ 2023",street:"Teki Derishi​ 2 /ЛОК 1",lng:21.445300,lat:42.017925,channel:"Superette"},
+{id:"9500033987",name:"МАРКЕТИ ИМ ГРУПС",street:"1 21",lng:21.469191,lat:42.086405,channel:"Superette"},
+{id:"9500034774",name:"АЛ МАРКЕТС 24",street:"ФЕРИД БАЈРАМ 1",lng:21.452922,lat:42.017330,channel:"Superette"},
+{id:"9500035064",name:"ЛОЈАЛ МАРКЕТ",street:"4 27",lng:21.542075,lat:41.926325,channel:"Superette"},
+{id:"9500035139",name:"АЈАН ПЛУС 1",street:"Гоце Стојчевски 2/1-1",lng:21.440569,lat:42.024002,channel:"Superette"},
+{id:"9500035809",name:"МАРКЕТ САРАЈ 3",street:"1796 СЕМЕНИШТЕ 1",lng:21.252018,lat:41.978295,channel:"Superette"},
+{id:"9500035922",name:"ДИА МАРКЕТ 4",street:"Афузпашина 2/ЛОК2",lng:21.443355,lat:42.004310,channel:"Superette"},
+{id:"9510000196",name:"ВИВИДЕНТ ШУТО ОРИЗАРИ",street:"НОВ ЖИВОТ 43",lng:21.424908,lat:42.043331,channel:"Superette"},
+{id:"9510000320",name:"АНИ КОМЕРЦ 2",street:"УЛИЦА 2 1",lng:21.557872,lat:41.995296,channel:"Superette"},
+{id:"9510000667",name:"ДИА МАРКЕТ 5",street:"1668 1/5-1",lng:21.417741,lat:42.030508,channel:"Superette"},
+        ];
+
+        const channelColors = {
+            "Bar": "#e74c3c",
+            "Cafe": "#9b59b6",
+            "FSR": "#2980b9",
+            "Kiosk/Newsstand": "#27ae60",
+            "Other Local & Tradit": "#f39c12",
+            "Other Petroleum-Food": "#1abc9c",
+            "Pub": "#e67e22",
+            "Qsr-Other Fast Food": "#d35400",
+            "Superette": "#34495e"
+        };
+
+        // Initialize map centered on Skopje
+        const map = L.map('map', {
+            zoomSnap: 0.25,
+            zoomDelta: 0.25,
+            wheelDebounceTime: 150,
+            wheelPxPerZoomLevel: 200
+        }).setView([41.99, 21.47], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Channel quota storage
+        function getChannelQuotas() {
+            try { return JSON.parse(localStorage.getItem('skopje_channel_quotas') || '{}'); } catch(e) { return {}; }
+        }
+        function saveChannelQuotas(quotas) {
+            localStorage.setItem('skopje_channel_quotas', JSON.stringify(quotas));
+        }
+
+        // Create colored pin markers using SVG
+        function createPinIcon(color) {
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="42" viewBox="0 0 30 42">
+                <path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 15 27 15 27s15-16.5 15-27C30 6.7 23.3 0 15 0z"
+                      fill="${color}" stroke="#fff" stroke-width="2"/>
+                <circle cx="15" cy="14" r="6" fill="#fff" opacity="0.9"/>
+            </svg>`;
+            return L.divIcon({
+                html: svg,
+                className: '',
+                iconSize: [30, 42],
+                iconAnchor: [15, 42],
+                popupAnchor: [0, -36]
+            });
+        }
+
+        function createMarker(loc) {
+            const color = channelColors[loc.channel] || "#999";
+            return L.marker([loc.lat, loc.lng], {
+                icon: createPinIcon(color)
+            }).bindPopup(`
+                <div class="popup-name">${loc.name}</div>
+                <div class="popup-row"><b>Улица:</b> ${loc.street}</div>
+                <div class="popup-row"><b>ID:</b> ${loc.id}</div>
+                <div class="popup-channel" style="background:${color}">${loc.channel}</div>
+                <button class="btn-directions" onclick="getDirections(${loc.lat},${loc.lng},'${loc.name.replace(/'/g,"\\'")}','${loc.id}')">Насоки / Directions</button>
+            `);
+        }
+
+        // Track state
+        const activeChannels = new Set(Object.keys(channelColors));
+        let searchTerm = "";
+        const clusterGroup = L.markerClusterGroup({ maxClusterRadius: 40, spiderfyOnMaxZoom: true });
+        map.addLayer(clusterGroup);
+
+        function refreshMarkers() {
+            clusterGroup.clearLayers();
+            let count = 0;
+            locations.forEach(loc => {
+                if (!activeChannels.has(loc.channel)) return;
+                if (searchTerm && !loc.name.toLowerCase().includes(searchTerm) &&
+                    !loc.street.toLowerCase().includes(searchTerm) &&
+                    !loc.id.includes(searchTerm)) return;
+                clusterGroup.addLayer(createMarker(loc));
+                count++;
+            });
+            document.getElementById('result-count').textContent =
+                `${count} / ${locations.length} локации`;
+        }
+
+        // Build legend
+        const channelCounts = {};
+        locations.forEach(loc => {
+            channelCounts[loc.channel] = (channelCounts[loc.channel] || 0) + 1;
+        });
+
+        const legendEl = document.getElementById('legend-items');
+        const checkboxes = {};
+        const savedQuotas = getChannelQuotas();
+        Object.entries(channelColors).forEach(([ch, color]) => {
+            const cnt = channelCounts[ch] || 0;
+            const item = document.createElement('label');
+            item.className = 'legend-item';
+            item.style.setProperty('--ch-color', color);
+            item.innerHTML = `
+                <input type="checkbox" checked data-channel="${ch}">
+                <div class="legend-dot" style="background:${color}"></div>
+                <span class="legend-label">${ch}</span>
+                <span class="legend-count">${cnt}</span>
+                <input type="number" class="legend-quota" data-quota-channel="${ch}"
+                    value="${savedQuotas[ch] || ''}" placeholder="0" min="0"
+                    title="Квота за ${ch}" onclick="event.stopPropagation()">
+            `;
+            const cb = item.querySelector('input');
+            checkboxes[ch] = cb;
+            cb.addEventListener('change', () => {
+                if (cb.checked) {
+                    activeChannels.add(ch);
+                    item.classList.remove('disabled');
+                } else {
+                    activeChannels.delete(ch);
+                    item.classList.add('disabled');
+                }
+                refreshMarkers();
+            });
+            legendEl.appendChild(item);
+        });
+
+        // Select All / Deselect All
+        document.getElementById('btn-all').addEventListener('click', () => {
+            Object.entries(checkboxes).forEach(([ch, cb]) => {
+                cb.checked = true;
+                activeChannels.add(ch);
+                cb.closest('.legend-item').classList.remove('disabled');
+            });
+            refreshMarkers();
+        });
+        document.getElementById('btn-none').addEventListener('click', () => {
+            Object.entries(checkboxes).forEach(([ch, cb]) => {
+                cb.checked = false;
+                activeChannels.delete(ch);
+                cb.closest('.legend-item').classList.add('disabled');
+            });
+            refreshMarkers();
+        });
+
+        // Save channel quotas
+        document.getElementById('save-quotas').addEventListener('click', () => {
+            const quotas = {};
+            document.querySelectorAll('.legend-quota').forEach(input => {
+                const ch = input.dataset.quotaChannel;
+                const val = input.value.trim();
+                if (val) quotas[ch] = val;
+                input.classList.toggle('legend-quota-saved', !!val);
+            });
+            saveChannelQuotas(quotas);
+            const status = document.getElementById('quota-status');
+            status.style.display = 'block';
+            setTimeout(() => status.style.display = 'none', 2000);
+        });
+
+        // Highlight saved quotas on load
+        document.querySelectorAll('.legend-quota').forEach(input => {
+            if (input.value) input.classList.add('legend-quota-saved');
+        });
+
+        // Search
+        document.getElementById('search').addEventListener('input', (e) => {
+            searchTerm = e.target.value.toLowerCase().trim();
+            refreshMarkers();
+        });
+
+        // Initial render
+        refreshMarkers();
+
+        // Fit bounds
+        if (clusterGroup.getLayers().length > 0) {
+            map.fitBounds(clusterGroup.getBounds().pad(0.05));
+        }
+
+        // My Location
+        let myLocationMarker = null;
+        let myLocationCircle = null;
+
+        const myLocIcon = L.divIcon({
+            className: 'my-location-icon',
+            html: '<div class="my-location-pulse"></div><div class="my-location-dot"></div>',
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+
+        function showMyLocation(lat, lng, accuracy) {
+            if (myLocationMarker) {
+                myLocationMarker.setLatLng([lat, lng]);
+                myLocationCircle.setLatLng([lat, lng]).setRadius(accuracy);
+            } else {
+                myLocationCircle = L.circle([lat, lng], {
+                    radius: accuracy, color: '#4285F4', fillColor: '#4285F4',
+                    fillOpacity: 0.1, weight: 1
+                }).addTo(map);
+                myLocationMarker = L.marker([lat, lng], { icon: myLocIcon, zIndexOffset: 1000 })
+                    .addTo(map)
+                    .bindPopup('<b>Моја локација</b>');
+            }
+            map.setView([lat, lng], 15);
+        }
+
+        // Directions / Routing
+        let myLatLng = null;
+        let routeLine = null;
+
+        let currentDestId = null;
+        const visitedIds = new Set();
+
+        function haversineKm(lat1, lng1, lat2, lng2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        function findNearest(fromLat, fromLng, excludeId, count) {
+            return locations
+                .filter(l => l.id !== excludeId && activeChannels.has(l.channel) && !visitedIds.has(l.id))
+                .map(l => ({ ...l, dist: haversineKm(fromLat, fromLng, l.lat, l.lng) }))
+                .sort((a, b) => a.dist - b.dist)
+                .slice(0, count);
+        }
+
+        function showNearest(destLat, destLng, destId) {
+            const container = document.getElementById('next-nearest');
+            const nearest = findNearest(destLat, destLng, destId, 3);
+            if (!nearest.length) { container.innerHTML = ''; return; }
+
+            let html = '<div class="next-header">Следен најблизок / Next nearest:</div>';
+            nearest.forEach(n => {
+                const color = channelColors[n.channel] || '#999';
+                const distTxt = n.dist < 1 ? `${Math.round(n.dist*1000)} m` : `${n.dist.toFixed(1)} km`;
+                html += `<div class="next-item">
+                    <div class="next-dot" style="background:${color}"></div>
+                    <span class="next-name" title="${n.name}">${n.name}</span>
+                    <span class="next-dist">${distTxt}</span>
+                    <button class="next-go" onclick="goToNext(${n.lat},${n.lng},'${n.name.replace(/'/g,"\\'")}','${n.id}')">Go</button>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function goToNext(lat, lng, name, id) {
+            if (currentDestId) visitedIds.add(currentDestId);
+            currentDestId = id;
+            if (myLatLng) {
+                fetchRoute(myLatLng[0], myLatLng[1], lat, lng, name, id);
+            } else {
+                getDirections(lat, lng, name, id);
+            }
+        }
+
+        function clearRoute() {
+            if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
+            document.getElementById('route-info').style.display = 'none';
+            document.getElementById('next-nearest').innerHTML = '';
+            currentDestId = null;
+            visitedIds.clear();
+        }
+
+        document.getElementById('btn-clear-route').addEventListener('click', clearRoute);
+
+        function getDirections(destLat, destLng, destName, destId) {
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by your browser.');
+                return;
+            }
+            if (currentDestId) visitedIds.add(currentDestId);
+            currentDestId = destId || null;
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    myLatLng = [pos.coords.latitude, pos.coords.longitude];
+                    showMyLocation(myLatLng[0], myLatLng[1], pos.coords.accuracy);
+                    fetchRoute(myLatLng[0], myLatLng[1], destLat, destLng, destName, destId);
+                },
+                (err) => {
+                    alert('Could not get your location: ' + err.message);
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        }
+
+        function fetchRoute(fromLat, fromLng, toLat, toLng, destName, destId) {
+            clearRoute();
+            const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+
+            fetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.routes || !data.routes.length) {
+                        alert('No route found.');
+                        return;
+                    }
+                    const route = data.routes[0];
+                    const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+
+                    routeLine = L.polyline(coords, {
+                        color: '#4285F4', weight: 5, opacity: 0.8
+                    }).addTo(map);
+
+                    map.fitBounds(routeLine.getBounds().pad(0.1));
+
+                    const distKm = (route.distance / 1000).toFixed(1);
+                    const durMin = Math.round(route.duration / 60);
+
+                    document.getElementById('route-dest').textContent = destName;
+                    document.getElementById('route-details').innerHTML =
+                        `<b>Растојание:</b> ${distKm} km<br><b>Време:</b> ~${durMin} мин`;
+                    document.getElementById('route-info').style.display = 'block';
+
+                    showNearest(toLat, toLng, destId);
+                })
+                .catch(() => alert('Error fetching route.'));
+        }
+
+        document.getElementById('locate-btn').addEventListener('click', () => {
+            const btn = document.getElementById('locate-btn');
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by your browser.');
+                return;
+            }
+            btn.style.background = '#e8f0fe';
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    btn.style.background = '';
+                    showMyLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+                },
+                (err) => {
+                    btn.style.background = '';
+                    alert('Could not get your location: ' + err.message);
+                },
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
+        });
+    </script>
+</body>
+</html>
