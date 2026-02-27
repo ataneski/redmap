@@ -48,7 +48,16 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-family: Arial, sans-serif;
             max-height: 90vh; overflow-y: auto; min-width: 200px;
         }
-        #legend h3 { margin: 0 0 6px; font-size: 14px; color: #333; }
+        #legend h3 {
+            margin: 0; font-size: 14px; color: #333; cursor: pointer;
+            display: flex; align-items: center; justify-content: space-between;
+            user-select: none;
+        }
+        #legend h3::after { content: '▲'; font-size: 10px; color: #999; transition: transform 0.2s; }
+        #legend.collapsed h3::after { transform: rotate(180deg); }
+        #legend-body { transition: max-height 0.3s ease; overflow: hidden; }
+        #legend.collapsed #legend-body { max-height: 0 !important; }
+        #legend:not(.collapsed) #legend-body { max-height: 600px; }
         .legend-btns { display: flex; gap: 6px; margin-bottom: 8px; }
         .legend-btns button {
             flex: 1; padding: 4px 0; font-size: 11px; cursor: pointer;
@@ -175,14 +184,16 @@
         <button id="btn-clear-route">Исчисти рута / Clear route</button>
     </div>
     <div id="legend">
-        <h3>Канал / Channel</h3>
-        <div class="legend-btns">
-            <button id="btn-all">Сите ON</button>
-            <button id="btn-none">Сите OFF</button>
+        <h3 id="legend-toggle">Канал / Channel</h3>
+        <div id="legend-body">
+            <div class="legend-btns" style="margin-top:8px">
+                <button id="btn-all">Сите ON</button>
+                <button id="btn-none">Сите OFF</button>
+            </div>
+            <div id="legend-items"></div>
+            <button id="save-quotas">Зачувај квоти</button>
+            <div id="quota-status">Зачувано!</div>
         </div>
-        <div id="legend-items"></div>
-        <button id="save-quotas">Зачувај квоти</button>
-        <div id="quota-status">Зачувано!</div>
     </div>
     <script>
         const locations = [
@@ -1527,6 +1538,11 @@
         });
 
         updateQuotaProgress();
+
+        // Legend collapse toggle
+        document.getElementById('legend-toggle').addEventListener('click', () => {
+            document.getElementById('legend').classList.toggle('collapsed');
+        });
 
         // Search
         document.getElementById('search').addEventListener('input', (e) => {
