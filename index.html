@@ -1589,16 +1589,22 @@
             localStorage.setItem('skopje_channel_quotas', JSON.stringify(quotas));
         }
 
-        // Visited storage
+        // Visited storage (stores timestamp)
         function getVisited() {
             try { return JSON.parse(localStorage.getItem('skopje_visited') || '{}'); } catch(e) { return {}; }
         }
         function setVisited(id, val) {
             const v = getVisited();
-            if (val) { v[id] = true; } else { delete v[id]; }
+            if (val) { v[id] = new Date().toISOString(); } else { delete v[id]; }
             localStorage.setItem('skopje_visited', JSON.stringify(v));
         }
         function isVisited(id) { return !!getVisited()[id]; }
+        function getVisitedDate(id) {
+            const v = getVisited()[id];
+            if (!v || v === true) return null;
+            const d = new Date(v);
+            return d.toLocaleDateString('mk-MK') + ' ' + d.toLocaleTimeString('mk-MK', {hour:'2-digit',minute:'2-digit'});
+        }
 
         function getVisitedCountByChannel() {
             const v = getVisited();
@@ -1656,16 +1662,15 @@
             const plan = getPlan();
             const visited = getVisited();
 
-            // Find unvisited locations from plan first, then all
+            // Find nearest from plan first, then all active
             let candidates = [];
             if (plan.length > 0) {
                 candidates = plan
                     .map(pid => locations.find(l => l.id === pid))
-                    .filter(l => l && !visited[l.id] && l.id !== fromId);
+                    .filter(l => l && l.id !== fromId);
             }
-            // If no plan candidates, use all active channel locations
             if (candidates.length === 0) {
-                candidates = locations.filter(l => !visited[l.id] && l.id !== fromId && activeChannels.has(l.channel));
+                candidates = locations.filter(l => l.id !== fromId && activeChannels.has(l.channel));
             }
 
             const nearest = candidates
@@ -1973,6 +1978,8 @@
             const checkedAttr = visited ? 'checked' : '';
             const labelClass = visited ? 'visited-yes' : '';
             const labelText = visited ? 'Посетен!' : 'Посетен?';
+            const visitDate = getVisitedDate(loc.id);
+            const visitDateHtml = visitDate ? `<div style="font-size:10px;color:#27ae60;">Последна посета: ${visitDate}</div>` : '';
             const planBtnClass = inPlan ? 'btn-plan in-plan' : 'btn-plan';
             const planBtnText = inPlan ? '- План' : '+ План';
             return L.marker([loc.lat, loc.lng], {
@@ -1982,6 +1989,7 @@
                 <div class="popup-row"><b>Улица:</b> ${loc.street}</div>
                 <div class="popup-row"><b>ID:</b> ${loc.id}</div>
                 <div class="popup-channel" style="background:${color}">${loc.channel}</div>
+                ${visitDateHtml}
                 <div class="popup-visited">
                     <input type="checkbox" id="vis-${loc.id}" ${checkedAttr} onchange="toggleVisited('${loc.id}')">
                     <label for="vis-${loc.id}" class="${labelClass}">${labelText}</label>
