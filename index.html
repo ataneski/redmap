@@ -1559,7 +1559,8 @@
         }
 
         function openGoogleNav(lat, lng) {
-            window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, '_blank');
+            const origin = myLatLng ? `${myLatLng[0]},${myLatLng[1]}` : '';
+            window.open(`https://www.google.com/maps/dir/${origin}/${lat},${lng}`, '_blank');
         }
 
         function planToggleVisited(id) {
@@ -1993,11 +1994,11 @@
             const plan = getPlan();
             if (plan.length === 0) return;
             const locs = plan.map(id => locations.find(l => l.id === id)).filter(Boolean);
-            const origin = myLatLng ? `${myLatLng[0]},${myLatLng[1]}` : `${locs[0].lat},${locs[0].lng}`;
-            const dest = locs[locs.length - 1];
-            const waypoints = locs.slice(myLatLng ? 0 : 1, -1).map(l => `${l.lat},${l.lng}`).join('|');
-            let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest.lat},${dest.lng}&travelmode=driving`;
-            if (waypoints) url += `&waypoints=${waypoints}`;
+            // Path format opens in Google Maps app with Start button
+            let points = [];
+            if (myLatLng) points.push(`${myLatLng[0]},${myLatLng[1]}`);
+            locs.forEach(l => points.push(`${l.lat},${l.lng}`));
+            const url = `https://www.google.com/maps/dir/${points.join('/')}`;
             window.open(url, '_blank');
         });
         document.getElementById('btn-clear-plan').addEventListener('click', () => {
