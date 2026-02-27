@@ -232,6 +232,24 @@
             border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;
         }
         .btn-optimize:hover { background: #d68910; }
+
+        #next-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 2000; justify-content: center; align-items: center; }
+        #next-modal.active { display: flex; }
+        .next-dialog { background: #fff; border-radius: 10px; padding: 16px 18px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-family: Arial, sans-serif; max-width: 320px; width: 90%; }
+        .next-dialog h4 { margin: 0 0 10px; font-size: 15px; color: #27ae60; }
+        .next-dialog-item { display: flex; align-items: center; gap: 8px; padding: 8px 4px; border-radius: 6px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
+        .next-dialog-item:hover { background: #f0f4ff; }
+        .next-dialog-item:last-child { border-bottom: none; }
+        .ndi-num { font-weight: bold; color: #555; min-width: 20px; }
+        .ndi-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        .ndi-info { flex: 1; }
+        .ndi-name { font-weight: 600; color: #222; }
+        .ndi-ch { font-size: 11px; color: #888; }
+        .ndi-dist { font-size: 12px; color: #555; white-space: nowrap; }
+        .ndi-nav { background: #4285F4; color: #fff; border: none; border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 12px; font-weight: bold; flex-shrink: 0; }
+        .ndi-nav:hover { background: #3367D6; }
+        .next-dialog-close { width: 100%; margin-top: 10px; padding: 8px; background: #eee; border: none; border-radius: 5px; cursor: pointer; font-size: 13px; color: #555; }
+        .next-dialog-close:hover { background: #ddd; }
         .btn-clear-plan {
             padding: 7px 10px; background: #e74c3c; color: #fff;
             border: none; border-radius: 4px; cursor: pointer; font-size: 12px;
@@ -331,6 +349,13 @@
 </head>
 <body>
     <div id="map"></div>
+    <div id="next-modal">
+        <div class="next-dialog">
+            <h4 id="next-modal-title">Следни најблиски</h4>
+            <div id="next-modal-items"></div>
+            <button class="next-dialog-close" onclick="closeNextModal()">Затвори</button>
+        </div>
+    </div>
     <button id="locate-btn" title="My Location">
         <svg viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2">
             <circle cx="12" cy="12" r="3"/>
@@ -1617,11 +1642,62 @@
         }
 
         function planToggleVisited(id) {
-            setVisited(id, !isVisited(id));
+            const nowVisited = !isVisited(id);
+            setVisited(id, nowVisited);
             updateQuotaProgress();
             renderPlanPanel();
             refreshMarkers();
+            if (nowVisited) showNextNearest(id);
         }
+
+        function showNextNearest(fromId) {
+            const fromLoc = locations.find(l => l.id === fromId);
+            if (!fromLoc) return;
+            const plan = getPlan();
+            const visited = getVisited();
+
+            // Find unvisited locations from plan first, then all
+            let candidates = [];
+            if (plan.length > 0) {
+                candidates = plan
+                    .map(pid => locations.find(l => l.id === pid))
+                    .filter(l => l && !visited[l.id] && l.id !== fromId);
+            }
+            // If no plan candidates, use all active channel locations
+            if (candidates.length === 0) {
+                candidates = locations.filter(l => !visited[l.id] && l.id !== fromId && activeChannels.has(l.channel));
+            }
+
+            const nearest = candidates
+                .map(l => ({ ...l, dist: haversineKm(fromLoc.lat, fromLoc.lng, l.lat, l.lng) }))
+                .sort((a, b) => a.dist - b.dist)
+                .slice(0, 3);
+
+            if (nearest.length === 0) return;
+
+            document.getElementById('next-modal-title').textContent = `✓ ${fromLoc.name} — Следни:`;
+            let html = '';
+            nearest.forEach((n, i) => {
+                const color = channelColors[n.channel] || '#999';
+                const distTxt = n.dist < 1 ? `${Math.round(n.dist * 1000)} m` : `${n.dist.toFixed(1)} km`;
+                html += `<div class="next-dialog-item" onclick="map.setView([${n.lat},${n.lng}],16);closeNextModal();">
+                    <span class="ndi-num">${i + 1}</span>
+                    <div class="ndi-dot" style="background:${color}"></div>
+                    <div class="ndi-info"><div class="ndi-name">${n.name}</div><div class="ndi-ch">${n.channel}</div></div>
+                    <span class="ndi-dist">${distTxt}</span>
+                    <button class="ndi-nav" onclick="event.stopPropagation();openGoogleNav(${n.lat},${n.lng})">▶</button>
+                </div>`;
+            });
+            document.getElementById('next-modal-items').innerHTML = html;
+            document.getElementById('next-modal').classList.add('active');
+        }
+
+        function closeNextModal() {
+            document.getElementById('next-modal').classList.remove('active');
+        }
+        document.getElementById('next-modal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('next-modal')) closeNextModal();
+        });
 
         // Radius modal state
         let radiusCenter = null; // {lat, lng, name}
@@ -1921,7 +1997,9 @@
             const cb = document.getElementById('vis-' + id);
             setVisited(id, cb.checked);
             updateQuotaProgress();
+            renderPlanPanel();
             refreshMarkers();
+            if (cb.checked) showNextNearest(id);
         }
 
         // Track state
