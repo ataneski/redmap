@@ -110,6 +110,17 @@
         }
         .next-go:hover { background: #3367D6; }
 
+        #locate-btn {
+            position: absolute; bottom: 30px; right: 10px; z-index: 1000;
+            background: white; border: none; border-radius: 8px;
+            width: 44px; height: 44px; cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.2s;
+        }
+        #locate-btn:hover { background: #f0f0f0; }
+        #locate-btn svg { width: 22px; height: 22px; }
+
         #search-box {
             position: absolute; top: 10px; left: 10px; z-index: 1000;
             background: white; border-radius: 8px; padding: 8px 12px;
@@ -144,6 +155,13 @@
 </head>
 <body>
     <div id="map"></div>
+    <button id="locate-btn" title="My Location">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v3m0 14v3M2 12h3m14 0h3"/>
+            <circle cx="12" cy="12" r="8"/>
+        </svg>
+    </button>
     <div id="search-box">
         <input type="text" id="search" placeholder="Пребарувај по име или улица...">
         <div id="result-count"></div>
@@ -1703,6 +1721,30 @@
                 .catch(() => alert('Error fetching route.'));
         }
 
+        document.getElementById('locate-btn').addEventListener('click', () => {
+            const btn = document.getElementById('locate-btn');
+            if (myLatLng) {
+                showMyLocation(myLatLng[0], myLatLng[1], 50, true);
+                return;
+            }
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by your browser.');
+                return;
+            }
+            btn.style.background = '#e8f0fe';
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    btn.style.background = '';
+                    myLatLng = [pos.coords.latitude, pos.coords.longitude];
+                    showMyLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, true);
+                },
+                (err) => {
+                    btn.style.background = '';
+                    alert('Не може да се добие локација: ' + err.message);
+                },
+                { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+            );
+        });
     </script>
 </body>
 </html>
