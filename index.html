@@ -15,6 +15,18 @@
         .popup-name { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
         .popup-row { color: #555; font-size: 12px; }
         .popup-channel { display: inline-block; padding: 2px 8px; border-radius: 10px; color: #fff; font-size: 11px; font-weight: bold; margin-top: 4px; }
+        .popup-visited {
+            display: flex; align-items: center; gap: 6px; margin-top: 8px;
+            padding: 6px 0; border-top: 1px solid #eee; cursor: pointer; user-select: none;
+        }
+        .popup-visited input { width: 18px; height: 18px; accent-color: #27ae60; cursor: pointer; }
+        .popup-visited label { font-size: 13px; font-weight: bold; color: #333; cursor: pointer; }
+        .popup-visited .visited-yes { color: #27ae60; }
+
+        .quota-progress { font-size: 11px; font-weight: bold; white-space: nowrap; flex-shrink: 0; min-width: 40px; text-align: center; }
+        .qp-done { color: #27ae60; }
+        .qp-sep { color: #999; }
+        .qp-total { color: #e74c3c; }
 
         .legend-quota {
             width: 45px; padding: 3px 4px; border: 1px solid #ccc; border-radius: 4px;
@@ -99,7 +111,7 @@
         .next-go:hover { background: #3367D6; }
 
         #search-box {
-            position: absolute; top: 10px; left: 55px; z-index: 1000;
+            position: absolute; top: 10px; left: 10px; z-index: 1000;
             background: white; border-radius: 8px; padding: 8px 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.25);
         }
@@ -110,16 +122,6 @@
         #search-box input:focus { border-color: #4A90D9; }
         #result-count { font-size: 11px; color: #888; margin-top: 4px; }
 
-        #locate-btn {
-            position: absolute; bottom: 30px; right: 10px; z-index: 1000;
-            background: white; border: none; border-radius: 8px;
-            width: 44px; height: 44px; cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-            display: flex; align-items: center; justify-content: center;
-            transition: background 0.2s;
-        }
-        #locate-btn:hover { background: #f0f0f0; }
-        #locate-btn svg { width: 22px; height: 22px; }
 
         @keyframes pulse-ring {
             0% { transform: scale(0.5); opacity: 1; }
@@ -153,13 +155,6 @@
         <div id="next-nearest"></div>
         <button id="btn-clear-route">Исчисти рута / Clear route</button>
     </div>
-    <button id="locate-btn" title="My Location">
-        <svg viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M12 2v3m0 14v3M2 12h3m14 0h3"/>
-            <circle cx="12" cy="12" r="8"/>
-        </svg>
-    </button>
     <div id="legend">
         <h3>Канал / Channel</h3>
         <div class="legend-btns">
@@ -1329,12 +1324,35 @@
             localStorage.setItem('skopje_channel_quotas', JSON.stringify(quotas));
         }
 
+        // Visited storage
+        function getVisited() {
+            try { return JSON.parse(localStorage.getItem('skopje_visited') || '{}'); } catch(e) { return {}; }
+        }
+        function setVisited(id, val) {
+            const v = getVisited();
+            if (val) { v[id] = true; } else { delete v[id]; }
+            localStorage.setItem('skopje_visited', JSON.stringify(v));
+        }
+        function isVisited(id) { return !!getVisited()[id]; }
+
+        function getVisitedCountByChannel() {
+            const v = getVisited();
+            const counts = {};
+            locations.forEach(loc => {
+                if (v[loc.id]) counts[loc.channel] = (counts[loc.channel] || 0) + 1;
+            });
+            return counts;
+        }
+
         // Create colored pin markers using SVG
-        function createPinIcon(color) {
+        function createPinIcon(color, visited) {
+            const center = visited
+                ? `<path d="M9 14l3 3 7-7" fill="none" stroke="#27ae60" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`
+                : `<circle cx="15" cy="14" r="6" fill="#fff" opacity="0.9"/>`;
             const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="42" viewBox="0 0 30 42">
                 <path d="M15 0C6.7 0 0 6.7 0 15c0 10.5 15 27 15 27s15-16.5 15-27C30 6.7 23.3 0 15 0z"
-                      fill="${color}" stroke="#fff" stroke-width="2"/>
-                <circle cx="15" cy="14" r="6" fill="#fff" opacity="0.9"/>
+                      fill="${visited ? '#27ae60' : color}" stroke="#fff" stroke-width="2"/>
+                ${center}
             </svg>`;
             return L.divIcon({
                 html: svg,
@@ -1347,15 +1365,30 @@
 
         function createMarker(loc) {
             const color = channelColors[loc.channel] || "#999";
+            const visited = isVisited(loc.id);
+            const checkedAttr = visited ? 'checked' : '';
+            const labelClass = visited ? 'visited-yes' : '';
+            const labelText = visited ? 'Посетен!' : 'Посетен?';
             return L.marker([loc.lat, loc.lng], {
-                icon: createPinIcon(color)
+                icon: createPinIcon(color, visited)
             }).bindPopup(`
                 <div class="popup-name">${loc.name}</div>
                 <div class="popup-row"><b>Улица:</b> ${loc.street}</div>
                 <div class="popup-row"><b>ID:</b> ${loc.id}</div>
                 <div class="popup-channel" style="background:${color}">${loc.channel}</div>
+                <div class="popup-visited">
+                    <input type="checkbox" id="vis-${loc.id}" ${checkedAttr} onchange="toggleVisited('${loc.id}')">
+                    <label for="vis-${loc.id}" class="${labelClass}">${labelText}</label>
+                </div>
                 <button class="btn-directions" onclick="getDirections(${loc.lat},${loc.lng},'${loc.name.replace(/'/g,"\\'")}','${loc.id}')">Насоки / Directions</button>
             `);
+        }
+
+        function toggleVisited(id) {
+            const cb = document.getElementById('vis-' + id);
+            setVisited(id, cb.checked);
+            updateQuotaProgress();
+            refreshMarkers();
         }
 
         // Track state
@@ -1398,6 +1431,7 @@
                 <div class="legend-dot" style="background:${color}"></div>
                 <span class="legend-label">${ch}</span>
                 <span class="legend-count">${cnt}</span>
+                <span class="quota-progress" data-progress-channel="${ch}"></span>
                 <input type="number" class="legend-quota" data-quota-channel="${ch}"
                     value="${savedQuotas[ch] || ''}" placeholder="0" min="0"
                     title="Квота за ${ch}" onclick="event.stopPropagation()">
@@ -1445,15 +1479,35 @@
                 input.classList.toggle('legend-quota-saved', !!val);
             });
             saveChannelQuotas(quotas);
+            updateQuotaProgress();
             const status = document.getElementById('quota-status');
             status.style.display = 'block';
             setTimeout(() => status.style.display = 'none', 2000);
         });
 
+        // Quota progress update
+        function updateQuotaProgress() {
+            const quotas = getChannelQuotas();
+            const visitedCounts = getVisitedCountByChannel();
+            document.querySelectorAll('[data-progress-channel]').forEach(el => {
+                const ch = el.dataset.progressChannel;
+                const quota = parseInt(quotas[ch]) || 0;
+                const done = visitedCounts[ch] || 0;
+                if (quota > 0) {
+                    el.innerHTML = `<span class="qp-done">${done}</span><span class="qp-sep">/</span><span class="qp-total">${quota}</span>`;
+                } else {
+                    el.textContent = done > 0 ? `${done}` : '';
+                    if (done > 0) el.innerHTML = `<span class="qp-done">${done}</span>`;
+                }
+            });
+        }
+
         // Highlight saved quotas on load
         document.querySelectorAll('.legend-quota').forEach(input => {
             if (input.value) input.classList.add('legend-quota-saved');
         });
+
+        updateQuotaProgress();
 
         // Search
         document.getElementById('search').addEventListener('input', (e) => {
@@ -1480,7 +1534,7 @@
             iconAnchor: [10, 10]
         });
 
-        function showMyLocation(lat, lng, accuracy) {
+        function showMyLocation(lat, lng, accuracy, zoomTo) {
             if (myLocationMarker) {
                 myLocationMarker.setLatLng([lat, lng]);
                 myLocationCircle.setLatLng([lat, lng]).setRadius(accuracy);
@@ -1493,7 +1547,7 @@
                     .addTo(map)
                     .bindPopup('<b>Моја локација</b>');
             }
-            map.setView([lat, lng], 15);
+            if (zoomTo) map.setView([lat, lng], 15);
         }
 
         // Directions / Routing
@@ -1558,24 +1612,61 @@
 
         document.getElementById('btn-clear-route').addEventListener('click', clearRoute);
 
+        // Background location tracking — silent updates
+        if (navigator.geolocation) {
+            // Quick low-accuracy first
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    myLatLng = [pos.coords.latitude, pos.coords.longitude];
+                    showMyLocation(myLatLng[0], myLatLng[1], pos.coords.accuracy, false);
+                },
+                () => {},
+                { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+            );
+            // Then watch for better accuracy
+            navigator.geolocation.watchPosition(
+                (pos) => {
+                    myLatLng = [pos.coords.latitude, pos.coords.longitude];
+                    showMyLocation(myLatLng[0], myLatLng[1], pos.coords.accuracy, false);
+                },
+                () => {},
+                { enableHighAccuracy: true, maximumAge: 10000 }
+            );
+        }
+
         function getDirections(destLat, destLng, destName, destId) {
+            if (currentDestId) visitedIds.add(currentDestId);
+            currentDestId = destId || null;
+
+            // Use cached location if available (instant)
+            if (myLatLng) {
+                fetchRoute(myLatLng[0], myLatLng[1], destLat, destLng, destName, destId);
+                return;
+            }
+
             if (!navigator.geolocation) {
                 alert('Geolocation is not supported by your browser.');
                 return;
             }
-            if (currentDestId) visitedIds.add(currentDestId);
-            currentDestId = destId || null;
-
+            // Fallback: try low accuracy first, then high
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
                     myLatLng = [pos.coords.latitude, pos.coords.longitude];
-                    showMyLocation(myLatLng[0], myLatLng[1], pos.coords.accuracy);
+                    showMyLocation(myLatLng[0], myLatLng[1], pos.coords.accuracy, false);
                     fetchRoute(myLatLng[0], myLatLng[1], destLat, destLng, destName, destId);
                 },
-                (err) => {
-                    alert('Could not get your location: ' + err.message);
+                () => {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                            myLatLng = [pos.coords.latitude, pos.coords.longitude];
+                            showMyLocation(myLatLng[0], myLatLng[1], pos.coords.accuracy, false);
+                            fetchRoute(myLatLng[0], myLatLng[1], destLat, destLng, destName, destId);
+                        },
+                        (err) => { alert('Не може да се добие локација: ' + err.message); },
+                        { enableHighAccuracy: true, timeout: 10000 }
+                    );
                 },
-                { enableHighAccuracy: true, timeout: 10000 }
+                { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
             );
         }
 
@@ -1612,25 +1703,6 @@
                 .catch(() => alert('Error fetching route.'));
         }
 
-        document.getElementById('locate-btn').addEventListener('click', () => {
-            const btn = document.getElementById('locate-btn');
-            if (!navigator.geolocation) {
-                alert('Geolocation is not supported by your browser.');
-                return;
-            }
-            btn.style.background = '#e8f0fe';
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    btn.style.background = '';
-                    showMyLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
-                },
-                (err) => {
-                    btn.style.background = '';
-                    alert('Could not get your location: ' + err.message);
-                },
-                { enableHighAccuracy: true, timeout: 10000 }
-            );
-        });
     </script>
 </body>
 </html>
