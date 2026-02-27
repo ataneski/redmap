@@ -99,6 +99,47 @@
         .btn-plan.in-plan { background: #e74c3c; }
         .btn-plan.in-plan:hover { background: #c0392b; }
 
+        #radius-modal {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 2000;
+            justify-content: center; align-items: center;
+        }
+        #radius-modal.active { display: flex; }
+        .radius-dialog {
+            background: #fff; border-radius: 10px; padding: 16px 18px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-family: Arial, sans-serif;
+            max-width: 320px; width: 90%; max-height: 80vh; overflow-y: auto;
+        }
+        .radius-dialog h4 { margin: 0 0 10px; font-size: 15px; color: #333; }
+        .radius-btns { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+        .radius-btn {
+            padding: 6px 14px; border: 2px solid #f39c12; border-radius: 20px;
+            background: #fff; color: #f39c12; font-size: 13px; font-weight: bold;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .radius-btn:hover, .radius-btn.active { background: #f39c12; color: #fff; }
+        .radius-channels { margin-bottom: 10px; }
+        .radius-ch-item {
+            display: flex; align-items: center; gap: 8px; padding: 5px 2px;
+            font-size: 13px; cursor: pointer; user-select: none;
+        }
+        .radius-ch-item input { width: 16px; height: 16px; cursor: pointer; }
+        .radius-ch-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+        .radius-ch-name { flex: 1; }
+        .radius-ch-count { color: #888; font-size: 12px; }
+        .radius-total { font-size: 13px; color: #555; margin-bottom: 10px; font-weight: bold; }
+        .radius-actions { display: flex; gap: 8px; }
+        .radius-add {
+            flex: 1; padding: 8px; background: #f39c12; color: #fff; border: none;
+            border-radius: 5px; font-size: 14px; font-weight: bold; cursor: pointer;
+        }
+        .radius-add:hover { background: #d68910; }
+        .radius-cancel {
+            padding: 8px 14px; background: #eee; color: #333; border: none;
+            border-radius: 5px; font-size: 14px; cursor: pointer;
+        }
+        .radius-cancel:hover { background: #ddd; }
+
         #plan-panel {
             position: absolute; top: 55px; left: 10px; z-index: 1000;
             background: white; border-radius: 8px; padding: 10px 12px;
@@ -228,6 +269,23 @@
     <div id="search-box">
         <input type="text" id="search" placeholder="Пребарувај по име или улица...">
         <div id="result-count"></div>
+    </div>
+    <div id="radius-modal">
+        <div class="radius-dialog">
+            <h4 id="radius-title">Додај објекти во близина</h4>
+            <div class="radius-btns">
+                <button class="radius-btn" onclick="setRadius(1)">1 km</button>
+                <button class="radius-btn" onclick="setRadius(3)">3 km</button>
+                <button class="radius-btn" onclick="setRadius(5)">5 km</button>
+                <button class="radius-btn" onclick="setRadius(10)">10 km</button>
+            </div>
+            <div class="radius-channels" id="radius-channels"></div>
+            <div class="radius-total" id="radius-total"></div>
+            <div class="radius-actions">
+                <button class="radius-add" id="radius-add-btn">Додај во план</button>
+                <button class="radius-cancel" onclick="closeRadiusModal()">Откажи</button>
+            </div>
+        </div>
     </div>
     <div id="plan-panel">
         <h4>План за посета <span class="plan-count" id="plan-count"></span></h4>
@@ -1454,8 +1512,109 @@
             refreshMarkers();
         }
         function togglePlan(id) {
-            if (isInPlan(id)) removeFromPlan(id); else addToPlan(id);
+            if (isInPlan(id)) {
+                removeFromPlan(id);
+            } else {
+                addToPlan(id);
+                openRadiusModal(id);
+            }
         }
+
+        // Radius modal state
+        let radiusCenterLoc = null;
+        let radiusKm = null;
+        let radiusNearby = [];
+        let radiusChannelChecked = {};
+
+        function openRadiusModal(centerId) {
+            radiusCenterLoc = locations.find(l => l.id === centerId);
+            if (!radiusCenterLoc) return;
+            radiusKm = null;
+            radiusNearby = [];
+            radiusChannelChecked = {};
+            document.getElementById('radius-title').textContent = `Додај во близина на: ${radiusCenterLoc.name}`;
+            document.getElementById('radius-channels').innerHTML = '';
+            document.getElementById('radius-total').textContent = '';
+            document.querySelectorAll('.radius-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('radius-modal').classList.add('active');
+        }
+
+        function closeRadiusModal() {
+            document.getElementById('radius-modal').classList.remove('active');
+            radiusCenterLoc = null;
+        }
+
+        function setRadius(km) {
+            radiusKm = km;
+            document.querySelectorAll('.radius-btn').forEach(b => {
+                b.classList.toggle('active', parseFloat(b.textContent) === km);
+            });
+
+            // Find nearby locations within radius
+            const plan = getPlan();
+            radiusNearby = locations.filter(l => {
+                if (l.id === radiusCenterLoc.id) return false;
+                if (plan.includes(l.id)) return false;
+                return haversineKm(radiusCenterLoc.lat, radiusCenterLoc.lng, l.lat, l.lng) <= km;
+            });
+
+            // Group by channel
+            const byChannel = {};
+            radiusNearby.forEach(l => {
+                byChannel[l.channel] = (byChannel[l.channel] || 0) + 1;
+            });
+
+            // All channels checked by default
+            radiusChannelChecked = {};
+            Object.keys(byChannel).forEach(ch => { radiusChannelChecked[ch] = true; });
+
+            renderRadiusChannels(byChannel);
+            updateRadiusTotal();
+        }
+
+        function renderRadiusChannels(byChannel) {
+            const container = document.getElementById('radius-channels');
+            let html = '';
+            Object.entries(byChannel).sort((a,b) => b[1] - a[1]).forEach(([ch, cnt]) => {
+                const color = channelColors[ch] || '#999';
+                const checked = radiusChannelChecked[ch] ? 'checked' : '';
+                html += `<label class="radius-ch-item">
+                    <input type="checkbox" ${checked} onchange="toggleRadiusChannel('${ch}', this.checked)">
+                    <div class="radius-ch-dot" style="background:${color}"></div>
+                    <span class="radius-ch-name">${ch}</span>
+                    <span class="radius-ch-count">${cnt}</span>
+                </label>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function toggleRadiusChannel(ch, val) {
+            radiusChannelChecked[ch] = val;
+            updateRadiusTotal();
+        }
+
+        function updateRadiusTotal() {
+            const filtered = radiusNearby.filter(l => radiusChannelChecked[l.channel]);
+            document.getElementById('radius-total').textContent = `Вкупно: ${filtered.length} објекти`;
+        }
+
+        document.getElementById('radius-add-btn').addEventListener('click', () => {
+            if (!radiusKm) { alert('Избери радиус.'); return; }
+            const filtered = radiusNearby.filter(l => radiusChannelChecked[l.channel]);
+            if (filtered.length === 0) { alert('Нема објекти за додавање.'); return; }
+            const plan = getPlan();
+            filtered.forEach(l => {
+                if (!plan.includes(l.id)) plan.push(l.id);
+            });
+            savePlan(plan);
+            renderPlanPanel();
+            refreshMarkers();
+            closeRadiusModal();
+        });
+
+        document.getElementById('radius-modal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('radius-modal')) closeRadiusModal();
+        });
 
         let planRouteLayer = null;
         let planStopMarkers = [];
