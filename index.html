@@ -167,6 +167,11 @@
         .plan-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
         .plan-num { font-weight: bold; color: #555; font-size: 11px; min-width: 16px; }
         .plan-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .plan-nav {
+            background: #4285F4; border: none; border-radius: 4px; cursor: pointer;
+            color: #fff; font-size: 11px; padding: 2px 6px; flex-shrink: 0; font-weight: bold;
+        }
+        .plan-nav:hover { background: #3367D6; }
         .plan-remove {
             background: none; border: none; color: #e74c3c; cursor: pointer;
             font-size: 16px; font-weight: bold; padding: 0 4px; flex-shrink: 0;
@@ -1547,6 +1552,10 @@
             }
         }
 
+        function openGoogleNav(lat, lng) {
+            window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`, '_blank');
+        }
+
         function planToggleVisited(id) {
             setVisited(id, !isVisited(id));
             updateQuotaProgress();
@@ -1700,6 +1709,7 @@
                     <span class="plan-num">${i + 1}</span>
                     <div class="plan-dot" style="background:${color}"></div>
                     <span class="plan-name" title="${loc.name}">${loc.name}<br><span style="font-size:10px;color:${color}">${loc.channel}</span></span>
+                    <button class="plan-nav" onclick="openGoogleNav(${loc.lat},${loc.lng})" title="Навигација">&#9654;</button>
                     <button class="plan-remove" onclick="removeFromPlan('${loc.id}')">&times;</button>
                 </div>`;
             });
@@ -1840,7 +1850,7 @@
                     <label for="vis-${loc.id}" class="${labelClass}">${labelText}</label>
                 </div>
                 <div class="popup-btns">
-                    <button class="btn-directions" onclick="getDirections(${loc.lat},${loc.lng},'${loc.name.replace(/'/g,"\\'")}','${loc.id}')">Насоки</button>
+                    <button class="btn-directions" onclick="openGoogleNav(${loc.lat},${loc.lng})">&#9654; Навигација</button>
                     <button class="${planBtnClass}" onclick="togglePlan('${loc.id}')">&#9776; ${planBtnText}</button>
                 </div>
             `);
