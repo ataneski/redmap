@@ -1536,6 +1536,7 @@
             savePlan(getPlan().filter(x => x !== id));
             renderPlanPanel();
             refreshMarkers();
+            if (planRouteLayer) optimizePlanRoute();
         }
         function togglePlan(id) {
             if (isInPlan(id)) {
