@@ -183,6 +183,50 @@
             border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;
         }
         .btn-gmaps:hover { background: #2d9249; }
+        .plan-save-row { display: flex; gap: 6px; margin-top: 6px; }
+        .btn-save-plan {
+            flex: 1; padding: 7px; background: #8e44ad; color: #fff;
+            border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;
+        }
+        .btn-save-plan:hover { background: #7d3c98; }
+        .btn-new-plan {
+            padding: 7px 10px; background: #2980b9; color: #fff;
+            border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;
+        }
+        .btn-new-plan:hover { background: #2471a3; }
+        #saved-plans-panel {
+            position: absolute; top: 55px; left: 10px; z-index: 999;
+            background: white; border-radius: 8px; padding: 10px 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-family: Arial, sans-serif;
+            max-height: 50vh; overflow-y: auto; min-width: 220px; max-width: 280px;
+            display: none;
+        }
+        #saved-plans-panel h4 { margin: 0 0 8px; font-size: 13px; color: #333; }
+        .saved-plan-item {
+            display: flex; align-items: center; gap: 6px; padding: 6px 4px;
+            border-radius: 4px; font-size: 12px; cursor: pointer;
+        }
+        .saved-plan-item:hover { background: #f0f4ff; }
+        .saved-plan-name { flex: 1; font-weight: 600; }
+        .saved-plan-count { color: #888; font-size: 11px; }
+        .saved-plan-del {
+            background: none; border: none; color: #e74c3c; cursor: pointer;
+            font-size: 16px; font-weight: bold; padding: 0 4px;
+        }
+        .saved-plan-del:hover { color: #c0392b; }
+        #btn-show-saved {
+            position: absolute; top: 55px; left: 10px; z-index: 998;
+            background: #8e44ad; color: #fff; border: none; border-radius: 8px;
+            padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-family: Arial, sans-serif;
+            display: none;
+        }
+        #btn-show-saved:hover { background: #7d3c98; }
+        .save-name-input {
+            width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px;
+            font-size: 12px; margin-bottom: 6px; outline: none;
+        }
+        .save-name-input:focus { border-color: #8e44ad; }
         .btn-optimize {
             flex: 1; padding: 7px; background: #f39c12; color: #fff;
             border: none; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;
@@ -323,6 +367,11 @@
             </div>
         </div>
     </div>
+    <button id="btn-show-saved">Зачувани планови</button>
+    <div id="saved-plans-panel">
+        <h4>Зачувани планови</h4>
+        <div id="saved-plans-list"></div>
+    </div>
     <div id="plan-panel">
         <h4>План за посета <span class="plan-count" id="plan-count"></span></h4>
         <div id="plan-items"></div>
@@ -331,6 +380,10 @@
             <button class="btn-clear-plan" id="btn-clear-plan">X</button>
         </div>
         <button class="btn-gmaps" id="btn-gmaps-route">Отвори во Google Maps</button>
+        <div class="plan-save-row">
+            <button class="btn-save-plan" id="btn-save-plan">Зачувај план</button>
+            <button class="btn-new-plan" id="btn-new-plan">Нов план</button>
+        </div>
         <div id="plan-route-info"></div>
     </div>
     <div id="route-info">
@@ -1697,6 +1750,7 @@
             if (plan.length === 0) {
                 panel.style.display = 'none';
                 clearPlanRoute();
+                if (typeof renderSavedPlans === 'function') renderSavedPlans();
                 return;
             }
             panel.style.display = 'block';
@@ -2008,6 +2062,82 @@
             refreshMarkers();
         });
         renderPlanPanel();
+
+        // Saved plans storage
+        function getSavedPlans() {
+            try { return JSON.parse(localStorage.getItem('skopje_saved_plans') || '[]'); } catch(e) { return []; }
+        }
+        function setSavedPlans(plans) { localStorage.setItem('skopje_saved_plans', JSON.stringify(plans)); }
+
+        function renderSavedPlans() {
+            const plans = getSavedPlans();
+            const btn = document.getElementById('btn-show-saved');
+            const list = document.getElementById('saved-plans-list');
+            // Show button only when no active plan and there are saved plans
+            btn.style.display = (getPlan().length === 0 && plans.length > 0) ? 'block' : 'none';
+
+            let html = '';
+            if (plans.length === 0) {
+                html = '<div style="color:#888;font-size:12px;">Нема зачувани планови</div>';
+            }
+            plans.forEach((p, i) => {
+                html += `<div class="saved-plan-item" onclick="loadPlan(${i})">
+                    <span class="saved-plan-name">${p.name}</span>
+                    <span class="saved-plan-count">${p.ids.length} obj</span>
+                    <button class="saved-plan-del" onclick="event.stopPropagation();deletePlan(${i})" title="Избриши">&times;</button>
+                </div>`;
+            });
+            list.innerHTML = html;
+        }
+
+        function loadPlan(idx) {
+            const plans = getSavedPlans();
+            if (!plans[idx]) return;
+            savePlan(plans[idx].ids);
+            clearPlanRoute();
+            renderPlanPanel();
+            refreshMarkers();
+            document.getElementById('saved-plans-panel').style.display = 'none';
+            renderSavedPlans();
+        }
+
+        function deletePlan(idx) {
+            const plans = getSavedPlans();
+            plans.splice(idx, 1);
+            setSavedPlans(plans);
+            renderSavedPlans();
+        }
+
+        // Save plan button
+        document.getElementById('btn-save-plan').addEventListener('click', () => {
+            const plan = getPlan();
+            if (plan.length === 0) return;
+            const name = prompt('Име на планот:');
+            if (!name || !name.trim()) return;
+            const plans = getSavedPlans();
+            plans.push({ name: name.trim(), ids: plan });
+            setSavedPlans(plans);
+            alert('Планот е зачуван!');
+            renderSavedPlans();
+        });
+
+        // New plan button
+        document.getElementById('btn-new-plan').addEventListener('click', () => {
+            if (getPlan().length > 0 && !confirm('Сигурно сакаш нов план? (Тековниот ќе се изгуби ако не е зачуван)')) return;
+            savePlan([]);
+            clearPlanRoute();
+            renderPlanPanel();
+            refreshMarkers();
+            renderSavedPlans();
+        });
+
+        // Show saved plans button
+        document.getElementById('btn-show-saved').addEventListener('click', () => {
+            const panel = document.getElementById('saved-plans-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        });
+
+        renderSavedPlans();
 
         // Nearby plan from my location
         document.getElementById('nearby-plan-btn').addEventListener('click', openRadiusModalFromMyLocation);
