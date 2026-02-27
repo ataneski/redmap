@@ -184,6 +184,17 @@
             line-height: 26px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.3);
         }
 
+        #nearby-plan-btn {
+            position: absolute; top: 130px; left: 10px; z-index: 1000;
+            background: #f39c12; border: none; border-radius: 8px;
+            padding: 8px 12px; cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            display: flex; align-items: center; gap: 6px;
+            color: #fff; font-size: 13px; font-weight: bold; font-family: Arial, sans-serif;
+            transition: background 0.2s;
+        }
+        #nearby-plan-btn:hover { background: #d68910; }
+
         #route-info {
             position: absolute; bottom: 30px; left: 10px; z-index: 1000;
             background: white; border-radius: 8px; padding: 12px 16px;
@@ -265,6 +276,14 @@
             <path d="M12 2v3m0 14v3M2 12h3m14 0h3"/>
             <circle cx="12" cy="12" r="8"/>
         </svg>
+    </button>
+    <button id="nearby-plan-btn" title="Додај од моја локација во план">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" width="18" height="18">
+            <circle cx="12" cy="12" r="3"/>
+            <circle cx="12" cy="12" r="8"/>
+            <path d="M12 2v3m0 14v3M2 12h3m14 0h3"/>
+        </svg>
+        <span>+ План</span>
     </button>
     <div id="search-box">
         <input type="text" id="search" placeholder="Пребарувај по име или улица...">
@@ -1521,18 +1540,31 @@
         }
 
         // Radius modal state
-        let radiusCenterLoc = null;
+        let radiusCenter = null; // {lat, lng, name}
         let radiusKm = null;
         let radiusNearby = [];
         let radiusChannelChecked = {};
 
         function openRadiusModal(centerId) {
-            radiusCenterLoc = locations.find(l => l.id === centerId);
-            if (!radiusCenterLoc) return;
+            const loc = locations.find(l => l.id === centerId);
+            if (!loc) return;
+            openRadiusModalAt(loc.lat, loc.lng, loc.name);
+        }
+
+        function openRadiusModalFromMyLocation() {
+            if (!myLatLng) {
+                alert('Локацијата сеуште не е достапна. Пробај повторно.');
+                return;
+            }
+            openRadiusModalAt(myLatLng[0], myLatLng[1], 'Моја локација');
+        }
+
+        function openRadiusModalAt(lat, lng, name) {
+            radiusCenter = { lat, lng, name };
             radiusKm = null;
             radiusNearby = [];
             radiusChannelChecked = {};
-            document.getElementById('radius-title').textContent = `Додај во близина на: ${radiusCenterLoc.name}`;
+            document.getElementById('radius-title').textContent = `Додај во близина на: ${name}`;
             document.getElementById('radius-channels').innerHTML = '';
             document.getElementById('radius-total').textContent = '';
             document.querySelectorAll('.radius-btn').forEach(b => b.classList.remove('active'));
@@ -1541,7 +1573,7 @@
 
         function closeRadiusModal() {
             document.getElementById('radius-modal').classList.remove('active');
-            radiusCenterLoc = null;
+            radiusCenter = null;
         }
 
         function setRadius(km) {
@@ -1553,9 +1585,8 @@
             // Find nearby locations within radius
             const plan = getPlan();
             radiusNearby = locations.filter(l => {
-                if (l.id === radiusCenterLoc.id) return false;
                 if (plan.includes(l.id)) return false;
-                return haversineKm(radiusCenterLoc.lat, radiusCenterLoc.lng, l.lat, l.lng) <= km;
+                return haversineKm(radiusCenter.lat, radiusCenter.lng, l.lat, l.lng) <= km;
             });
 
             // Group by channel
@@ -1905,6 +1936,9 @@
             refreshMarkers();
         });
         renderPlanPanel();
+
+        // Nearby plan from my location
+        document.getElementById('nearby-plan-btn').addEventListener('click', openRadiusModalFromMyLocation);
 
         // Legend collapse toggle
         document.getElementById('legend-toggle').addEventListener('click', () => {
