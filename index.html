@@ -2237,6 +2237,27 @@
         document.getElementById('search').addEventListener('input', (e) => {
             searchTerm = e.target.value.toLowerCase().trim();
             refreshMarkers();
+            // Zoom to result if few matches
+            if (searchTerm.length >= 2) {
+                const matches = locations.filter(loc =>
+                    activeChannels.has(loc.channel) && (
+                    loc.name.toLowerCase().includes(searchTerm) ||
+                    loc.street.toLowerCase().includes(searchTerm) ||
+                    loc.id.includes(searchTerm))
+                );
+                if (matches.length === 1) {
+                    map.setView([matches[0].lat, matches[0].lng], 17);
+                    // Open popup
+                    clusterGroup.eachLayer(layer => {
+                        if (layer.getLatLng().lat === matches[0].lat && layer.getLatLng().lng === matches[0].lng) {
+                            layer.openPopup();
+                        }
+                    });
+                } else if (matches.length > 1 && matches.length <= 10) {
+                    const bounds = L.latLngBounds(matches.map(m => [m.lat, m.lng]));
+                    map.fitBounds(bounds.pad(0.1));
+                }
+            }
         });
 
         // Initial render
