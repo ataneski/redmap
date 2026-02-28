@@ -1673,12 +1673,7 @@
             if (planRouteLayer) optimizePlanRoute();
         }
         function togglePlan(id) {
-            if (isInPlan(id)) {
-                removeFromPlan(id);
-            } else {
-                addToPlan(id);
-                openRadiusModal(id);
-            }
+            if (isInPlan(id)) removeFromPlan(id); else addToPlan(id);
         }
 
         function openGoogleNav(lat, lng) {
