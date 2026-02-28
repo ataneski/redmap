@@ -148,9 +148,15 @@
             display: none;
         }
         #plan-panel h4 {
-            margin: 0 0 6px; font-size: 13px; color: #333;
+            margin: 0; font-size: 13px; color: #333; cursor: pointer;
             display: flex; align-items: center; justify-content: space-between;
+            user-select: none;
         }
+        #plan-panel h4::after { content: '▲'; font-size: 10px; color: #999; transition: transform 0.2s; }
+        #plan-panel.plan-collapsed h4::after { transform: rotate(180deg); }
+        #plan-body { transition: max-height 0.3s ease; overflow: hidden; }
+        #plan-panel.plan-collapsed #plan-body { max-height: 0 !important; }
+        #plan-panel:not(.plan-collapsed) #plan-body { max-height: 500px; overflow-y: auto; }
         .plan-count { font-size: 11px; color: #888; font-weight: normal; }
         .plan-item.visited-item { opacity: 0.5; text-decoration: line-through; }
         .plan-visit-btn {
@@ -345,6 +351,37 @@
             border-radius: 50%; position: absolute; top: 3px; left: 3px;
             animation: pulse-ring 1.5s ease-out infinite;
         }
+        @media (max-width: 768px) {
+            #search-box { left: 10px; right: 10px; padding: 6px 10px; }
+            #search-box input { width: 100%; font-size: 16px; padding: 8px 10px; }
+
+            #plan-panel {
+                top: auto; bottom: 0; left: 0; right: 0;
+                max-width: none; min-width: unset;
+                border-radius: 12px 12px 0 0; max-height: 45vh;
+                padding: 10px 14px;
+            }
+            #plan-panel h4 { font-size: 15px; padding: 4px 0; }
+            #plan-panel.plan-collapsed { max-height: 42px; overflow: hidden; }
+
+            #legend {
+                top: auto; right: 0; left: 0; bottom: 0;
+                border-radius: 12px 12px 0 0; max-height: 40vh;
+                min-width: unset; padding: 10px 14px;
+            }
+            #legend.collapsed { max-height: 38px; overflow: hidden; }
+            #legend h3 { font-size: 15px; padding: 4px 0; }
+
+            #saved-plans-panel {
+                top: auto; bottom: 0; left: 0; right: 0;
+                max-width: none; min-width: unset;
+                border-radius: 12px 12px 0 0; max-height: 40vh;
+            }
+            #btn-show-saved { top: auto; bottom: 50px; left: 10px; }
+
+            #locate-btn { bottom: 80px; }
+            #nearby-plan-btn { bottom: 80px; }
+        }
     </style>
 </head>
 <body>
@@ -398,18 +435,20 @@
         <div id="saved-plans-list"></div>
     </div>
     <div id="plan-panel">
-        <h4>План за посета <span class="plan-count" id="plan-count"></span></h4>
-        <div id="plan-items"></div>
-        <div class="plan-actions">
-            <button class="btn-optimize" id="btn-optimize">Оптимизирај рута</button>
-            <button class="btn-clear-plan" id="btn-clear-plan">X</button>
+        <h4 id="plan-toggle">План за посета <span class="plan-count" id="plan-count"></span></h4>
+        <div id="plan-body">
+            <div id="plan-items"></div>
+            <div class="plan-actions">
+                <button class="btn-optimize" id="btn-optimize">Оптимизирај рута</button>
+                <button class="btn-clear-plan" id="btn-clear-plan">X</button>
+            </div>
+            <button class="btn-gmaps" id="btn-gmaps-route">Отвори во Google Maps</button>
+            <div class="plan-save-row">
+                <button class="btn-save-plan" id="btn-save-plan">Зачувај план</button>
+                <button class="btn-new-plan" id="btn-new-plan">Нов план</button>
+            </div>
+            <div id="plan-route-info"></div>
         </div>
-        <button class="btn-gmaps" id="btn-gmaps-route">Отвори во Google Maps</button>
-        <div class="plan-save-row">
-            <button class="btn-save-plan" id="btn-save-plan">Зачувај план</button>
-            <button class="btn-new-plan" id="btn-new-plan">Нов план</button>
-        </div>
-        <div id="plan-route-info"></div>
     </div>
     <div id="route-info">
         <h4>Насоки / Directions</h4>
@@ -2231,6 +2270,11 @@
         // Legend collapse toggle
         document.getElementById('legend-toggle').addEventListener('click', () => {
             document.getElementById('legend').classList.toggle('collapsed');
+        });
+
+        // Plan collapse toggle
+        document.getElementById('plan-toggle').addEventListener('click', () => {
+            document.getElementById('plan-panel').classList.toggle('plan-collapsed');
         });
 
         // Search
