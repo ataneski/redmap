@@ -99,6 +99,49 @@
         .btn-plan.in-plan { background: #e74c3c; }
         .btn-plan.in-plan:hover { background: #c0392b; }
 
+        #daily-modal {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 2000;
+            justify-content: center; align-items: center;
+        }
+        #daily-modal.active { display: flex; }
+        .daily-dialog {
+            background: #fff; border-radius: 10px; padding: 16px 18px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-family: Arial, sans-serif;
+            max-width: 340px; width: 90%; max-height: 80vh; overflow-y: auto;
+        }
+        .daily-dialog h4 { margin: 0 0 10px; font-size: 15px; color: #333; }
+        .daily-ch-row {
+            display: flex; align-items: center; gap: 8px; padding: 6px 2px; font-size: 13px;
+        }
+        .daily-ch-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+        .daily-ch-name { flex: 1; }
+        .daily-ch-remaining { font-size: 11px; color: #888; }
+        .daily-ch-input {
+            width: 50px; padding: 4px; border: 1px solid #ccc; border-radius: 4px;
+            font-size: 13px; text-align: center; outline: none;
+        }
+        .daily-ch-input:focus { border-color: #2980b9; }
+        .daily-generate {
+            width: 100%; margin-top: 10px; padding: 10px; background: #2980b9; color: #fff;
+            border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold;
+        }
+        .daily-generate:hover { background: #2471a3; }
+        .daily-cancel {
+            width: 100%; margin-top: 6px; padding: 8px; background: #eee; color: #555;
+            border: none; border-radius: 6px; cursor: pointer; font-size: 13px;
+        }
+        .daily-cancel:hover { background: #ddd; }
+        .daily-hint { font-size: 11px; color: #888; margin-bottom: 8px; }
+
+        #btn-daily-plan {
+            position: absolute; bottom: 80px; right: 10px; z-index: 1000;
+            background: #2980b9; color: #fff; border: none; border-radius: 8px;
+            padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: bold;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-family: Arial, sans-serif;
+        }
+        #btn-daily-plan:hover { background: #2471a3; }
+
         #radius-modal {
             display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.5); z-index: 2000;
@@ -386,6 +429,16 @@
 </head>
 <body>
     <div id="map"></div>
+    <button id="btn-daily-plan">Дневен план</button>
+    <div id="daily-modal">
+        <div class="daily-dialog">
+            <h4>Генерирај дневен план</h4>
+            <div class="daily-hint">Внеси колку објекти сакаш од секој канал. Системот ги избира најблиските непосетени.</div>
+            <div id="daily-channels"></div>
+            <button class="daily-generate" id="btn-daily-generate">Генерирај план</button>
+            <button class="daily-cancel" onclick="closeDailyModal()">Откажи</button>
+        </div>
+    </div>
     <div id="next-modal">
         <div class="next-dialog">
             <h4 id="next-modal-title">Следни најблиски</h4>
@@ -2258,6 +2311,87 @@
         });
 
         renderSavedPlans();
+
+        // Daily plan generator
+        function openDailyModal() {
+            const visited = getVisited();
+            const quotas = getChannelQuotas();
+            const visitedCounts = getVisitedCountByChannel();
+            const container = document.getElementById('daily-channels');
+            let html = '';
+            Object.entries(channelColors).forEach(([ch, color]) => {
+                const total = channelCounts[ch] || 0;
+                const done = visitedCounts[ch] || 0;
+                const remaining = total - done;
+                const quota = parseInt(quotas[ch]) || 0;
+                const quotaLeft = quota > 0 ? Math.max(0, quota - done) : 0;
+                const suggest = quotaLeft > 0 ? Math.min(quotaLeft, remaining) : '';
+                html += `<div class="daily-ch-row">
+                    <div class="daily-ch-dot" style="background:${color}"></div>
+                    <span class="daily-ch-name">${ch}</span>
+                    <span class="daily-ch-remaining">${remaining} ост.</span>
+                    <input type="number" class="daily-ch-input" data-daily-ch="${ch}"
+                        value="${suggest}" placeholder="0" min="0" max="${remaining}">
+                </div>`;
+            });
+            container.innerHTML = html;
+            document.getElementById('daily-modal').classList.add('active');
+        }
+
+        function closeDailyModal() {
+            document.getElementById('daily-modal').classList.remove('active');
+        }
+
+        document.getElementById('btn-daily-plan').addEventListener('click', openDailyModal);
+        document.getElementById('daily-modal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('daily-modal')) closeDailyModal();
+        });
+
+        document.getElementById('btn-daily-generate').addEventListener('click', () => {
+            const visited = getVisited();
+            // Get requested counts per channel
+            const requests = {};
+            document.querySelectorAll('.daily-ch-input').forEach(input => {
+                const ch = input.dataset.dailyCh;
+                const cnt = parseInt(input.value) || 0;
+                if (cnt > 0) requests[ch] = cnt;
+            });
+
+            if (Object.keys(requests).length === 0) {
+                alert('Внеси барем еден канал.');
+                return;
+            }
+
+            // Start point: user location or center of Skopje
+            const startLat = myLatLng ? myLatLng[0] : 41.99;
+            const startLng = myLatLng ? myLatLng[1] : 21.47;
+
+            // For each channel, pick nearest unvisited
+            let selected = [];
+            Object.entries(requests).forEach(([ch, cnt]) => {
+                const candidates = locations
+                    .filter(l => l.channel === ch && !visited[l.id])
+                    .map(l => ({ ...l, dist: haversineKm(startLat, startLng, l.lat, l.lng) }))
+                    .sort((a, b) => a.dist - b.dist)
+                    .slice(0, cnt);
+                selected = selected.concat(candidates);
+            });
+
+            if (selected.length === 0) {
+                alert('Нема непосетени објекти за избраните канали.');
+                return;
+            }
+
+            // Clear existing plan and set new
+            clearPlanRoute();
+            savePlan(selected.map(l => l.id));
+            renderPlanPanel();
+            refreshMarkers();
+            closeDailyModal();
+
+            // Auto-optimize
+            setTimeout(() => optimizePlanRoute(), 300);
+        });
 
         // Nearby plan from my location
         document.getElementById('nearby-plan-btn').addEventListener('click', openRadiusModalFromMyLocation);
