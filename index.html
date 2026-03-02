@@ -83,7 +83,7 @@
         .legend-item.disabled { opacity: 0.35; }
         .legend-item.disabled .legend-dot { border-color: #ccc; }
 
-        .popup-btns { display: flex; gap: 6px; margin-top: 8px; }
+        .popup-btns { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
         .btn-directions {
             flex: 1; padding: 6px 10px;
             background: #4285F4; color: #fff; border: none; border-radius: 4px;
@@ -98,6 +98,12 @@
         .btn-plan:hover { background: #d68910; }
         .btn-plan.in-plan { background: #e74c3c; }
         .btn-plan.in-plan:hover { background: #c0392b; }
+        .btn-radius {
+            flex: 1; padding: 6px 10px;
+            background: #27ae60; color: #fff; border: none; border-radius: 4px;
+            font-size: 12px; font-weight: bold; cursor: pointer; text-align: center;
+        }
+        .btn-radius:hover { background: #1e8449; }
 
         #daily-modal {
             display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -2084,6 +2090,7 @@
                 <div class="popup-btns">
                     <button class="btn-directions" onclick="openGoogleNav(${loc.lat},${loc.lng})">&#9654; Навигација</button>
                     <button class="${planBtnClass}" onclick="togglePlan('${loc.id}')">&#9776; ${planBtnText}</button>
+                    <button class="btn-radius" onclick="openRadiusModal('${loc.id}')">&#11044; + Блиски</button>
                 </div>
             `);
         }
