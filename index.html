@@ -1718,7 +1718,10 @@
             const resetTime = getQuotaResetTime();
             const counts = {};
             locations.forEach(loc => {
-                if (v[loc.id] && v[loc.id] > resetTime) counts[loc.channel] = (counts[loc.channel] || 0) + 1;
+                const ts = v[loc.id];
+                if (!ts) return;
+                const visitTime = (typeof ts === 'string') ? ts : '1970-01-01T00:00:00.000Z';
+                if (visitTime > resetTime) counts[loc.channel] = (counts[loc.channel] || 0) + 1;
             });
             return counts;
         }
