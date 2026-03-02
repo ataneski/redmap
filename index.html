@@ -1689,6 +1689,12 @@
         function saveChannelQuotas(quotas) {
             localStorage.setItem('skopje_channel_quotas', JSON.stringify(quotas));
         }
+        function getQuotaResetTime() {
+            return localStorage.getItem('skopje_quota_reset') || '1970-01-01T00:00:00.000Z';
+        }
+        function setQuotaResetTime() {
+            localStorage.setItem('skopje_quota_reset', new Date().toISOString());
+        }
 
         // Visited storage (stores timestamp)
         function getVisited() {
@@ -1709,9 +1715,10 @@
 
         function getVisitedCountByChannel() {
             const v = getVisited();
+            const resetTime = getQuotaResetTime();
             const counts = {};
             locations.forEach(loc => {
-                if (v[loc.id]) counts[loc.channel] = (counts[loc.channel] || 0) + 1;
+                if (v[loc.id] && v[loc.id] > resetTime) counts[loc.channel] = (counts[loc.channel] || 0) + 1;
             });
             return counts;
         }
@@ -2203,8 +2210,9 @@
 
         // Reset quotas (keep visited)
         document.getElementById('reset-quotas').addEventListener('click', () => {
-            if (!confirm('Ресетирај ги сите квоти? (Посетените објекти остануваат обележани)')) return;
+            if (!confirm('Ресетирај ги квотите и прогресот? (Објектите на мапата остануваат обележани како посетени)')) return;
             saveChannelQuotas({});
+            setQuotaResetTime();
             document.querySelectorAll('.legend-quota').forEach(input => {
                 input.value = '';
                 input.classList.remove('legend-quota-saved');
@@ -2339,9 +2347,8 @@
 
         // Daily plan generator
         function openDailyModal() {
-            const visited = getVisited();
             const quotas = getChannelQuotas();
-            const visitedCounts = getVisitedCountByChannel();
+            const visitedCounts = getVisitedCountByChannel();  // already respects resetTime
             const container = document.getElementById('daily-channels');
             let html = '';
             Object.entries(channelColors).forEach(([ch, color]) => {
@@ -2374,6 +2381,7 @@
 
         document.getElementById('btn-daily-generate').addEventListener('click', () => {
             const visited = getVisited();
+            const resetTime = getQuotaResetTime();
             // Get requested counts per channel
             const requests = {};
             document.querySelectorAll('.daily-ch-input').forEach(input => {
@@ -2391,11 +2399,11 @@
             const startLat = myLatLng ? myLatLng[0] : 41.99;
             const startLng = myLatLng ? myLatLng[1] : 21.47;
 
-            // For each channel, pick nearest unvisited
+            // For each channel, pick nearest not-visited-in-current-period
             let selected = [];
             Object.entries(requests).forEach(([ch, cnt]) => {
                 const candidates = locations
-                    .filter(l => l.channel === ch && !visited[l.id])
+                    .filter(l => l.channel === ch && !(visited[l.id] && visited[l.id] > resetTime))
                     .map(l => ({ ...l, dist: haversineKm(startLat, startLng, l.lat, l.lng) }))
                     .sort((a, b) => a.dist - b.dist)
                     .slice(0, cnt);
