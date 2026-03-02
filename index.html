@@ -524,7 +524,10 @@
                 <button id="btn-none">Сите OFF</button>
             </div>
             <div id="legend-items"></div>
-            <button id="save-quotas">Зачувај квоти</button>
+            <div style="display:flex;gap:6px;margin-top:4px;">
+                <button id="save-quotas" style="flex:1;">Зачувај квоти</button>
+                <button id="reset-quotas" style="flex:1;background:#e74c3c;color:#fff;border:none;border-radius:4px;padding:6px 10px;font-size:12px;font-weight:bold;cursor:pointer;">Ресетирај квоти</button>
+            </div>
             <div id="quota-status">Зачувано!</div>
         </div>
     </div>
@@ -2196,6 +2199,21 @@
             const status = document.getElementById('quota-status');
             status.style.display = 'block';
             setTimeout(() => status.style.display = 'none', 2000);
+        });
+
+        // Reset quotas (keep visited)
+        document.getElementById('reset-quotas').addEventListener('click', () => {
+            if (!confirm('Ресетирај ги сите квоти? (Посетените објекти остануваат обележани)')) return;
+            saveChannelQuotas({});
+            document.querySelectorAll('.legend-quota').forEach(input => {
+                input.value = '';
+                input.classList.remove('legend-quota-saved');
+            });
+            updateQuotaProgress();
+            const status = document.getElementById('quota-status');
+            status.textContent = 'Квотите се ресетирани!';
+            status.style.display = 'block';
+            setTimeout(() => { status.style.display = 'none'; status.textContent = 'Зачувано!'; }, 2000);
         });
 
         // Quota progress update
