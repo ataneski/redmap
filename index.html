@@ -10,6 +10,9 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         #map { height: 100vh; width: 100%; }
@@ -148,6 +151,20 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-family: Arial, sans-serif;
         }
         #btn-daily-plan:hover { background: #2471a3; }
+
+        #sync-status {
+            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: #fff; border-radius: 20px; padding: 4px 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2); font-family: Arial, sans-serif;
+            font-size: 11px; display: flex; align-items: center; gap: 6px;
+            transition: opacity 0.3s;
+        }
+        #sync-status .sync-dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+        }
+        #sync-status .sync-dot.online { background: #27ae60; }
+        #sync-status .sync-dot.offline { background: #e74c3c; }
+        #sync-status .sync-dot.syncing { background: #f39c12; animation: pulse-ring 1s infinite; }
 
         #btn-import {
             position: absolute; bottom: 120px; right: 10px; z-index: 1000;
@@ -479,6 +496,7 @@
 </head>
 <body>
     <div id="map"></div>
+    <div id="sync-status"><span class="sync-dot syncing"></span><span id="sync-text">Поврзување...</span></div>
     <button id="btn-import">Импорт Excel</button>
     <input type="file" id="import-file" accept=".xlsx,.xls,.csv">
     <div id="import-modal">
@@ -592,6 +610,41 @@
         </div>
     </div>
     <script>
+        // ---- Firebase Setup ----
+        const firebaseConfig = {
+            apiKey: "AIzaSyBuhfZ1y45M-PNSEuebfvIPFymqPXR_y_w",
+            authDomain: "redceni.firebaseapp.com",
+            projectId: "redceni",
+            storageBucket: "redceni.firebasestorage.app",
+            messagingSenderId: "216404221760",
+            appId: "1:216404221760:web:b00efeec1cb6c5251624a5",
+            measurementId: "G-5LW0EW9V9R"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        let currentUser = null;
+
+        function setSyncStatus(state, text) {
+            const dot = document.querySelector('#sync-status .sync-dot');
+            const txt = document.getElementById('sync-text');
+            dot.className = 'sync-dot ' + state;
+            txt.textContent = text;
+        }
+
+        // Firestore helpers - write to both Firestore and localStorage
+        function fsWriteShared(docId, data) {
+            return db.collection('shared').doc(docId).set(data, { merge: true }).catch(e => console.warn('Firestore write error:', e));
+        }
+        function fsWriteUser(docId, data) {
+            if (!currentUser) return Promise.resolve();
+            return db.collection('users').doc(currentUser.uid).collection('state').doc(docId).set(data, { merge: true }).catch(e => console.warn('Firestore write error:', e));
+        }
+        function fsReadUser(docId) {
+            if (!currentUser) return Promise.resolve(null);
+            return db.collection('users').doc(currentUser.uid).collection('state').doc(docId).get().then(d => d.exists ? d.data() : null).catch(e => { console.warn('Firestore read error:', e); return null; });
+        }
+
         let locations = [
 {id:"9500030555",name:"ТОТИ РЕСТОРАН",street:"/ 3А",lng:21.538577,lat:41.973940,channel:"Bar"},
 {id:"9500028300",name:"БАЊА СВЕТА НЕДЕЛА КАТЛАНОВО",street:"1 1",lng:21.693677,lat:41.895932,channel:"Bar"},
@@ -1748,12 +1801,15 @@
         }
         function saveChannelQuotas(quotas) {
             localStorage.setItem('skopje_channel_quotas', JSON.stringify(quotas));
+            fsWriteUser('quotas', { quotas: quotas });
         }
         function getQuotaResetTime() {
             return localStorage.getItem('skopje_quota_reset') || '1970-01-01T00:00:00.000Z';
         }
         function setQuotaResetTime() {
-            localStorage.setItem('skopje_quota_reset', new Date().toISOString());
+            const ts = new Date().toISOString();
+            localStorage.setItem('skopje_quota_reset', ts);
+            fsWriteUser('quotas', { resetTime: ts });
         }
 
         // Visited storage (stores timestamp)
@@ -1764,6 +1820,7 @@
             const v = getVisited();
             if (val) { v[id] = new Date().toISOString(); } else { delete v[id]; }
             localStorage.setItem('skopje_visited', JSON.stringify(v));
+            fsWriteUser('visited', v);
         }
         function isVisited(id) { return !!getVisited()[id]; }
         function getVisitedDate(id) {
@@ -1790,7 +1847,10 @@
         function getPlan() {
             try { return JSON.parse(localStorage.getItem('skopje_plan') || '[]'); } catch(e) { return []; }
         }
-        function savePlan(plan) { localStorage.setItem('skopje_plan', JSON.stringify(plan)); }
+        function savePlan(plan) {
+            localStorage.setItem('skopje_plan', JSON.stringify(plan));
+            fsWriteUser('plan', { items: plan });
+        }
         function isInPlan(id) { return getPlan().includes(id); }
         function addToPlan(id) {
             const plan = getPlan();
@@ -2346,7 +2406,10 @@
         function getSavedPlans() {
             try { return JSON.parse(localStorage.getItem('skopje_saved_plans') || '[]'); } catch(e) { return []; }
         }
-        function setSavedPlans(plans) { localStorage.setItem('skopje_saved_plans', JSON.stringify(plans)); }
+        function setSavedPlans(plans) {
+            localStorage.setItem('skopje_saved_plans', JSON.stringify(plans));
+            fsWriteUser('savedPlans', { plans: plans });
+        }
 
         function renderSavedPlans() {
             const plans = getSavedPlans();
@@ -2760,32 +2823,115 @@
             pendingImportData = null;
         }
 
-        // Load previously imported locations from localStorage on startup
-        (function loadImportedLocations() {
+        // Load locations from localStorage immediately (fast startup)
+        function applyImportedLocations(imported) {
+            if (!Array.isArray(imported) || imported.length === 0) return;
+            locations = imported;
+            const newChannels = new Set(imported.map(l => l.channel));
+            let colorIdx = 0;
+            newChannels.forEach(ch => {
+                if (!channelColors[ch]) {
+                    channelColors[ch] = extraColors[colorIdx % extraColors.length];
+                    colorIdx++;
+                }
+            });
+            Object.keys(channelColors).forEach(ch => activeChannels.add(ch));
+            buildLegend();
+            updateQuotaProgress();
+            refreshMarkers();
+        }
+
+        // Load from localStorage first for instant display
+        (function loadFromLocalStorage() {
             const saved = localStorage.getItem('skopje_imported_locations');
             if (saved) {
-                try {
-                    const imported = JSON.parse(saved);
-                    if (Array.isArray(imported) && imported.length > 0) {
-                        locations = imported;
-                        // Discover any new channels
-                        const newChannels = new Set(imported.map(l => l.channel));
-                        let colorIdx = 0;
-                        newChannels.forEach(ch => {
-                            if (!channelColors[ch]) {
-                                channelColors[ch] = extraColors[colorIdx % extraColors.length];
-                                colorIdx++;
-                            }
-                        });
-                        // Rebuild activeChannels to include new channels
-                        Object.keys(channelColors).forEach(ch => activeChannels.add(ch));
-                        buildLegend();
-                        updateQuotaProgress();
-                        refreshMarkers();
-                    }
-                } catch(e) { /* ignore corrupt data */ }
+                try { applyImportedLocations(JSON.parse(saved)); } catch(e) {}
             }
         })();
+
+        // Firebase auth + full sync from Firestore
+        auth.signInAnonymously().then(() => {
+            console.log('Firebase auth OK');
+        }).catch(err => {
+            console.warn('Firebase auth error:', err);
+            setSyncStatus('offline', 'Офлајн режим');
+        });
+
+        auth.onAuthStateChanged(async (user) => {
+            if (!user) {
+                setSyncStatus('offline', 'Не е поврзан');
+                return;
+            }
+            currentUser = user;
+            setSyncStatus('syncing', 'Синхронизација...');
+
+            try {
+                // Load shared locations from Firestore
+                const sharedDoc = await db.collection('shared').doc('locations').get();
+                if (sharedDoc.exists) {
+                    const data = sharedDoc.data();
+                    if (data.items && data.items.length > 0) {
+                        if (data.channelColors) {
+                            Object.assign(channelColors, data.channelColors);
+                        }
+                        applyImportedLocations(data.items);
+                        localStorage.setItem('skopje_imported_locations', JSON.stringify(data.items));
+                    }
+                }
+
+                // Load user data from Firestore
+                const [visitedDoc, planDoc, quotasDoc, savedPlansDoc] = await Promise.all([
+                    fsReadUser('visited'),
+                    fsReadUser('plan'),
+                    fsReadUser('quotas'),
+                    fsReadUser('savedPlans')
+                ]);
+
+                if (visitedDoc) {
+                    // visitedDoc is the data itself (key:timestamp pairs)
+                    const visitedData = { ...visitedDoc };
+                    delete visitedData._ ; // remove any merge artifacts
+                    if (Object.keys(visitedData).length > 0) {
+                        localStorage.setItem('skopje_visited', JSON.stringify(visitedData));
+                    }
+                }
+
+                if (planDoc && planDoc.items) {
+                    localStorage.setItem('skopje_plan', JSON.stringify(planDoc.items));
+                }
+
+                if (quotasDoc) {
+                    if (quotasDoc.quotas) {
+                        localStorage.setItem('skopje_channel_quotas', JSON.stringify(quotasDoc.quotas));
+                    }
+                    if (quotasDoc.resetTime) {
+                        localStorage.setItem('skopje_quota_reset', quotasDoc.resetTime);
+                    }
+                }
+
+                if (savedPlansDoc && savedPlansDoc.plans) {
+                    localStorage.setItem('skopje_saved_plans', JSON.stringify(savedPlansDoc.plans));
+                }
+
+                // Rebuild UI with synced data
+                buildLegend();
+                updateQuotaProgress();
+                refreshMarkers();
+                renderPlanPanel();
+                renderSavedPlans();
+
+                setSyncStatus('online', `Поврзан (${user.uid.substring(0, 6)})`);
+
+                // Auto-hide status after 3s
+                setTimeout(() => {
+                    document.getElementById('sync-status').style.opacity = '0.4';
+                }, 3000);
+
+            } catch (err) {
+                console.warn('Firestore sync error:', err);
+                setSyncStatus('offline', 'Грешка при синхр.');
+            }
+        });
 
         function normalizeColumnName(col) {
             return String(col).trim().toLowerCase().replace(/\s+/g, '_');
@@ -2933,8 +3079,9 @@
                 activeChannels.add(ch);
             });
 
-            // Save to localStorage
+            // Save to localStorage and Firestore
             localStorage.setItem('skopje_imported_locations', JSON.stringify(locations));
+            fsWriteShared('locations', { items: locations, channelColors: channelColors });
 
             // Rebuild UI
             buildLegend();
