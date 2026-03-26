@@ -823,34 +823,46 @@
             });
 
             // Save
-            const btn = document.getElementById('btn-import-confirm');
+            var btn = document.getElementById('btn-import-confirm');
             btn.textContent = 'Зачувување...';
             btn.disabled = true;
-            localStorage.setItem('skopje_imported_locations', JSON.stringify(locations));
+            console.log('Saving', locations.length, 'locations...');
+
+            // Save to localStorage first (instant)
             try {
-                // Firestore doc limit is 1MB. For large datasets, save in chunks
-                if (JSON.stringify(locations).length > 800000) {
-                    // Split into chunks of 500
-                    const chunkSize = 500;
-                    for (let i = 0; i < locations.length; i += chunkSize) {
-                        const chunk = locations.slice(i, i + chunkSize);
-                        const chunkId = Math.floor(i / chunkSize);
-                        await db.collection('shared').doc('locations_' + chunkId).set({ items: chunk });
-                    }
-                    await db.collection('shared').doc('locations').set({
-                        chunked: true,
-                        chunkCount: Math.ceil(locations.length / chunkSize),
-                        channelColors: channelColors,
-                        totalCount: locations.length
-                    });
-                } else {
-                    await db.collection('shared').doc('locations').set({ items: locations, channelColors: channelColors });
+                localStorage.setItem('skopje_imported_locations', JSON.stringify(locations));
+                console.log('Saved to localStorage OK');
+            } catch(e) { console.warn('localStorage save error:', e); }
+
+            // Save to Firestore in chunks of 300 (well under 1MB limit)
+            try {
+                var chunkSize = 300;
+                var chunkCount = Math.ceil(locations.length / chunkSize);
+                console.log('Saving to Firestore in', chunkCount, 'chunks of', chunkSize);
+
+                for (var i = 0; i < locations.length; i += chunkSize) {
+                    var chunk = locations.slice(i, i + chunkSize);
+                    var chunkId = Math.floor(i / chunkSize);
+                    btn.textContent = 'Зачувување... ' + (chunkId + 1) + '/' + chunkCount;
+                    console.log('Saving chunk', chunkId, '(' + chunk.length + ' items)...');
+                    await db.collection('shared').doc('locations_' + chunkId).set({ items: chunk });
+                    console.log('Chunk', chunkId, 'saved OK');
                 }
+
+                // Save metadata doc
+                await db.collection('shared').doc('locations').set({
+                    chunked: true,
+                    chunkCount: chunkCount,
+                    channelColors: channelColors,
+                    totalCount: locations.length
+                });
+                console.log('Metadata saved OK. Import complete!');
                 setSyncStatus('online', 'Зачувано!');
+                alert('Успешно импортирани ' + locations.length + ' локации!');
             } catch(e) {
-                console.warn('Firestore save error:', e);
+                console.error('Firestore save error:', e);
                 setSyncStatus('offline', 'Грешка при зачувување');
-                alert('Грешка при зачувување во база: ' + e.message);
+                alert('Грешка при зачувување во база: ' + e.message + '\n\nПодатоците се зачувани локално.');
             }
             btn.textContent = 'Импортирај';
             btn.disabled = false;
