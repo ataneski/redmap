@@ -157,6 +157,41 @@
             border-radius: 4px; font-size: 11px;
         }
 
+        .create-user-form {
+            display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: flex-end;
+        }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 11px; color: #888; font-weight: bold; }
+        .form-group input, .form-group select {
+            padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px;
+            font-size: 13px; outline: none; min-width: 150px;
+        }
+        .form-group input:focus { border-color: #8e44ad; }
+        .btn-create {
+            padding: 8px 20px; background: #27ae60; color: #fff; border: none;
+            border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; height: 36px;
+        }
+        .btn-create:hover { background: #219a52; }
+        .btn-delete {
+            padding: 4px 10px; background: #e74c3c; color: #fff; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;
+        }
+        .btn-delete:hover { background: #c0392b; }
+        .btn-reset-pw {
+            padding: 4px 10px; background: #f39c12; color: #fff; border: none;
+            border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold;
+        }
+        .btn-reset-pw:hover { background: #d68910; }
+        .role-badge {
+            display: inline-block; padding: 2px 8px; border-radius: 10px;
+            font-size: 10px; font-weight: bold;
+        }
+        .role-badge.admin { background: #fef0f0; color: #e74c3c; }
+        .role-badge.user { background: #e8f4fd; color: #2980b9; }
+        .user-msg { font-size: 12px; margin-top: 8px; padding: 8px; border-radius: 6px; display: none; }
+        .user-msg.success { background: #e8f8f0; color: #27ae60; display: block; }
+        .user-msg.error { background: #fef0f0; color: #e74c3c; display: block; }
+
         .loading { color: #888; font-size: 13px; padding: 20px; text-align: center; }
 
         @media (max-width: 768px) {
@@ -248,9 +283,32 @@
         <!-- Users -->
         <div class="card">
             <h2>Корисници</h2>
+            <div class="create-user-form">
+                <div class="form-group">
+                    <label>Корисничко име</label>
+                    <input type="text" id="new-username" placeholder="пр. марко">
+                </div>
+                <div class="form-group">
+                    <label>Име и презиме</label>
+                    <input type="text" id="new-displayname" placeholder="пр. Марко Петров">
+                </div>
+                <div class="form-group">
+                    <label>Лозинка</label>
+                    <input type="text" id="new-password" placeholder="мин. 4 знаци">
+                </div>
+                <div class="form-group">
+                    <label>Улога</label>
+                    <select id="new-role">
+                        <option value="user">Корисник</option>
+                        <option value="admin">Админ</option>
+                    </select>
+                </div>
+                <button class="btn-create" id="btn-create-user">+ Креирај</button>
+            </div>
+            <div class="user-msg" id="user-msg"></div>
             <table class="users-table">
-                <thead><tr><th>Корисник ID</th><th>Посетени</th><th>Во план</th></tr></thead>
-                <tbody id="users-body"><tr><td colspan="3" class="loading">Вчитување...</td></tr></tbody>
+                <thead><tr><th>Корисничко име</th><th>Име</th><th>Улога</th><th>Посетени</th><th>Во план</th><th>Акции</th></tr></thead>
+                <tbody id="users-body"><tr><td colspan="6" class="loading">Вчитување...</td></tr></tbody>
             </table>
         </div>
     </div>
@@ -326,14 +384,56 @@
             }
         });
 
+        // Simple hash for passwords (SHA-256)
+        async function hashPassword(password) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password + '_redmap_salt');
+            const hash = await crypto.subtle.digest('SHA-256', data);
+            return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
         let usersData = [];
+        let userProfiles = {};
+
         async function loadAllUsers() {
             usersData = [];
+            userProfiles = {};
             allVisited = {};
             try {
+                // Load user profiles
+                const profilesSnap = await db.collection('userProfiles').get();
+                profilesSnap.docs.forEach(doc => {
+                    userProfiles[doc.id] = doc.data();
+                });
+
+                // Load user activity data
+                const profileUsernames = Object.keys(userProfiles);
+                for (const username of profileUsernames) {
+                    const [visitedSnap, planSnap] = await Promise.all([
+                        db.collection('users').doc(username).collection('state').doc('visited').get(),
+                        db.collection('users').doc(username).collection('state').doc('plan').get()
+                    ]);
+                    const visited = visitedSnap.exists ? visitedSnap.data() : {};
+                    const plan = planSnap.exists ? (planSnap.data().items || []) : [];
+                    const visitedCount = Object.keys(visited).length;
+                    const profile = userProfiles[username];
+                    usersData.push({
+                        username,
+                        displayName: profile.displayName || username,
+                        role: profile.role || 'user',
+                        visitedCount,
+                        planCount: plan.length
+                    });
+                    Object.entries(visited).forEach(([id, ts]) => {
+                        if (typeof ts === 'string' && ts.length > 5) allVisited[id] = ts;
+                    });
+                }
+
+                // Also check for anonymous users (legacy)
                 const usersSnap = await db.collection('users').get();
                 for (const userDoc of usersSnap.docs) {
                     const uid = userDoc.id;
+                    if (userProfiles[uid]) continue; // Already loaded
                     const [visitedSnap, planSnap] = await Promise.all([
                         db.collection('users').doc(uid).collection('state').doc('visited').get(),
                         db.collection('users').doc(uid).collection('state').doc('plan').get()
@@ -341,8 +441,15 @@
                     const visited = visitedSnap.exists ? visitedSnap.data() : {};
                     const plan = planSnap.exists ? (planSnap.data().items || []) : [];
                     const visitedCount = Object.keys(visited).length;
-                    usersData.push({ uid, visitedCount, planCount: plan.length });
-                    // Merge into allVisited
+                    if (visitedCount > 0 || plan.length > 0) {
+                        usersData.push({
+                            username: uid.substring(0, 12) + '...',
+                            displayName: '(Анонимен)',
+                            role: 'anonymous',
+                            visitedCount,
+                            planCount: plan.length
+                        });
+                    }
                     Object.entries(visited).forEach(([id, ts]) => {
                         if (typeof ts === 'string' && ts.length > 5) allVisited[id] = ts;
                     });
@@ -488,18 +595,101 @@
         function renderUsers() {
             const body = document.getElementById('users-body');
             if (usersData.length === 0) {
-                body.innerHTML = '<tr><td colspan="3" class="loading">Нема корисници</td></tr>';
+                body.innerHTML = '<tr><td colspan="6" class="loading">Нема корисници</td></tr>';
                 return;
             }
             let html = '';
             usersData.sort((a,b) => b.visitedCount - a.visitedCount).forEach(u => {
+                const roleBadge = u.role === 'admin'
+                    ? '<span class="role-badge admin">Админ</span>'
+                    : u.role === 'anonymous'
+                    ? '<span class="role-badge user">Анон.</span>'
+                    : '<span class="role-badge user">Корисник</span>';
+                const actions = u.role !== 'anonymous'
+                    ? `<button class="btn-reset-pw" onclick="resetPassword('${u.username}')">Лозинка</button>
+                       <button class="btn-delete" onclick="deleteUser('${u.username}')">Избриши</button>`
+                    : '';
                 html += `<tr>
-                    <td><span class="uid-badge">${u.uid.substring(0,12)}...</span></td>
+                    <td><span class="uid-badge">${u.username}</span></td>
+                    <td>${u.displayName}</td>
+                    <td>${roleBadge}</td>
                     <td>${u.visitedCount}</td>
                     <td>${u.planCount}</td>
+                    <td>${actions}</td>
                 </tr>`;
             });
             body.innerHTML = html;
+        }
+
+        // ---- User Management ----
+        function showUserMsg(text, type) {
+            const el = document.getElementById('user-msg');
+            el.textContent = text;
+            el.className = 'user-msg ' + type;
+            setTimeout(() => { el.className = 'user-msg'; }, 3000);
+        }
+
+        document.getElementById('btn-create-user').addEventListener('click', async () => {
+            const username = document.getElementById('new-username').value.trim().toLowerCase();
+            const displayName = document.getElementById('new-displayname').value.trim();
+            const password = document.getElementById('new-password').value;
+            const role = document.getElementById('new-role').value;
+
+            if (!username || username.length < 2) { showUserMsg('Корисничко име мора да има мин. 2 знаци', 'error'); return; }
+            if (/[^a-z0-9._-]/.test(username)) { showUserMsg('Корисничко име: само мали букви, бројки, точка, цртичка', 'error'); return; }
+            if (!displayName) { showUserMsg('Внеси име и презиме', 'error'); return; }
+            if (!password || password.length < 4) { showUserMsg('Лозинка мора да има мин. 4 знаци', 'error'); return; }
+
+            // Check if username exists
+            const existing = await db.collection('userProfiles').doc(username).get();
+            if (existing.exists) { showUserMsg('Корисничкото име веќе постои!', 'error'); return; }
+
+            try {
+                const pwHash = await hashPassword(password);
+                await db.collection('userProfiles').doc(username).set({
+                    displayName,
+                    passwordHash: pwHash,
+                    role,
+                    createdAt: new Date().toISOString()
+                });
+
+                // Clear form
+                document.getElementById('new-username').value = '';
+                document.getElementById('new-displayname').value = '';
+                document.getElementById('new-password').value = '';
+
+                showUserMsg(`Корисникот "${username}" е креиран!`, 'success');
+                await loadAllUsers();
+                renderUsers();
+                renderStats();
+            } catch(e) {
+                showUserMsg('Грешка: ' + e.message, 'error');
+            }
+        });
+
+        async function resetPassword(username) {
+            const newPw = prompt(`Нова лозинка за "${username}":`);
+            if (!newPw || newPw.length < 4) { alert('Лозинка мора да има мин. 4 знаци'); return; }
+            try {
+                const pwHash = await hashPassword(newPw);
+                await db.collection('userProfiles').doc(username).update({ passwordHash: pwHash });
+                showUserMsg(`Лозинката за "${username}" е променета!`, 'success');
+            } catch(e) {
+                showUserMsg('Грешка: ' + e.message, 'error');
+            }
+        }
+
+        async function deleteUser(username) {
+            if (!confirm(`Сигурно сакаш да го избришеш "${username}"? Ова нема да ги избрише неговите податоци (посети, планови).`)) return;
+            try {
+                await db.collection('userProfiles').doc(username).delete();
+                showUserMsg(`Корисникот "${username}" е избришан!`, 'success');
+                await loadAllUsers();
+                renderUsers();
+                renderStats();
+            } catch(e) {
+                showUserMsg('Грешка: ' + e.message, 'error');
+            }
         }
 
         // ---- Excel Import ----
