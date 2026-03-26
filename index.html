@@ -9,7 +9,6 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -166,48 +165,14 @@
         #sync-status .sync-dot.offline { background: #e74c3c; }
         #sync-status .sync-dot.syncing { background: #f39c12; animation: pulse-ring 1s infinite; }
 
-        #btn-import {
+        #btn-admin {
             position: absolute; bottom: 120px; right: 10px; z-index: 1000;
             background: #8e44ad; color: #fff; border: none; border-radius: 8px;
             padding: 8px 14px; cursor: pointer; font-size: 13px; font-weight: bold;
             box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-family: Arial, sans-serif;
+            text-decoration: none; display: block;
         }
-        #btn-import:hover { background: #7d3c98; }
-        #import-file { display: none; }
-
-        #import-modal {
-            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5); z-index: 2000;
-            justify-content: center; align-items: center;
-        }
-        #import-modal.active { display: flex; }
-        .import-dialog {
-            background: #fff; border-radius: 10px; padding: 16px 18px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-family: Arial, sans-serif;
-            max-width: 400px; width: 90%; max-height: 80vh; overflow-y: auto;
-        }
-        .import-dialog h4 { margin: 0 0 10px; font-size: 15px; color: #333; }
-        .import-hint { font-size: 12px; color: #888; margin-bottom: 10px; line-height: 1.5; }
-        .import-preview { font-size: 12px; color: #333; margin-bottom: 10px; }
-        .import-preview table { width: 100%; border-collapse: collapse; font-size: 11px; }
-        .import-preview th, .import-preview td { border: 1px solid #ddd; padding: 4px 6px; text-align: left; }
-        .import-preview th { background: #f5f5f5; font-weight: bold; }
-        .import-stats { font-size: 13px; margin-bottom: 10px; }
-        .import-stats b { color: #8e44ad; }
-        .import-mode { display: flex; gap: 8px; margin-bottom: 12px; }
-        .import-mode label { display: flex; align-items: center; gap: 4px; font-size: 13px; cursor: pointer; }
-        .import-mode input { cursor: pointer; }
-        .import-actions { display: flex; gap: 8px; }
-        .import-confirm {
-            flex: 1; padding: 10px; background: #8e44ad; color: #fff;
-            border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold;
-        }
-        .import-confirm:hover { background: #7d3c98; }
-        .import-cancel {
-            padding: 10px 16px; background: #eee; color: #555;
-            border: none; border-radius: 6px; cursor: pointer; font-size: 13px;
-        }
-        .import-cancel:hover { background: #ddd; }
+        #btn-admin:hover { background: #7d3c98; }
 
         #radius-modal {
             display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -497,22 +462,7 @@
 <body>
     <div id="map"></div>
     <div id="sync-status"><span class="sync-dot syncing"></span><span id="sync-text">Поврзување...</span></div>
-    <button id="btn-import">Импорт Excel</button>
-    <input type="file" id="import-file" accept=".xlsx,.xls,.csv">
-    <div id="import-modal">
-        <div class="import-dialog">
-            <h4>Импорт од Excel</h4>
-            <div id="import-preview"></div>
-            <div class="import-mode">
-                <label><input type="radio" name="import-mode" value="replace" checked> Замени ги сите</label>
-                <label><input type="radio" name="import-mode" value="merge"> Додај нови</label>
-            </div>
-            <div class="import-actions">
-                <button class="import-confirm" id="btn-import-confirm">Импортирај</button>
-                <button class="import-cancel" onclick="closeImportModal()">Откажи</button>
-            </div>
-        </div>
-    </div>
+    <a id="btn-admin" href="admin.html">Админ</a>
     <button id="btn-daily-plan">Дневен план</button>
     <div id="daily-modal">
         <div class="daily-dialog">
@@ -2814,14 +2764,8 @@
                 { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
             );
         });
-        // ---- Excel Import ----
+        // ---- Data Loading ----
         const extraColors = ['#16a085','#c0392b','#2c3e50','#7f8c8d','#d4ac0d','#6c3483','#1a5276','#a93226','#117a65','#b7950b'];
-        let pendingImportData = null;
-
-        function closeImportModal() {
-            document.getElementById('import-modal').classList.remove('active');
-            pendingImportData = null;
-        }
 
         // Load locations from localStorage immediately (fast startup)
         function applyImportedLocations(imported) {
@@ -2931,174 +2875,6 @@
                 console.warn('Firestore sync error:', err);
                 setSyncStatus('offline', 'Грешка при синхр.');
             }
-        });
-
-        function normalizeColumnName(col) {
-            return String(col).trim().toLowerCase().replace(/\s+/g, '_');
-        }
-
-        const columnMapping = {
-            'id': 'id', 'object_id': 'id', 'objectid': 'id', 'код': 'id',
-            'name': 'name', 'object_name': 'name', 'objectname': 'name', 'име': 'name', 'назив': 'name',
-            'street': 'street', 'address': 'street', 'улица': 'street', 'адреса': 'street',
-            'lng': 'lng', 'longitude': 'lng', 'lon': 'lng', 'x': 'lng',
-            'lat': 'lat', 'latitude': 'lat', 'y': 'lat',
-            'channel': 'channel', 'канал': 'channel', 'type': 'channel', 'тип': 'channel',
-            'bd_ter': 'bd_ter', 'city': 'city', 'град': 'city',
-            'region': 'region', 'регион': 'region'
-        };
-
-        function mapColumns(headers) {
-            const mapped = {};
-            headers.forEach(h => {
-                const norm = normalizeColumnName(h);
-                if (columnMapping[norm]) mapped[h] = columnMapping[norm];
-            });
-            return mapped;
-        }
-
-        function parseExcelRows(rows, colMap) {
-            const parsed = [];
-            rows.forEach(row => {
-                const obj = {};
-                Object.entries(colMap).forEach(([excelCol, field]) => {
-                    obj[field] = row[excelCol] != null ? String(row[excelCol]).trim() : '';
-                });
-                // Validate required fields
-                if (!obj.id || !obj.name || !obj.lat || !obj.lng) return;
-                const lat = parseFloat(obj.lat);
-                const lng = parseFloat(obj.lng);
-                if (isNaN(lat) || isNaN(lng)) return;
-                parsed.push({
-                    id: obj.id,
-                    name: obj.name,
-                    street: obj.street || '',
-                    lat: lat,
-                    lng: lng,
-                    channel: obj.channel || 'Other',
-                    bd_ter: obj.bd_ter || '',
-                    city: obj.city || '',
-                    region: obj.region || ''
-                });
-            });
-            return parsed;
-        }
-
-        document.getElementById('btn-import').addEventListener('click', () => {
-            document.getElementById('import-file').click();
-        });
-
-        document.getElementById('import-file').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-                try {
-                    const data = new Uint8Array(evt.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const sheetName = workbook.SheetNames[0];
-                    const sheet = workbook.Sheets[sheetName];
-                    const rows = XLSX.utils.sheet_to_json(sheet);
-
-                    if (rows.length === 0) {
-                        alert('Фајлот е празен или нема валидни редови.');
-                        return;
-                    }
-
-                    const headers = Object.keys(rows[0]);
-                    const colMap = mapColumns(headers);
-
-                    // Check required fields
-                    const mappedFields = new Set(Object.values(colMap));
-                    const missing = ['id','name','lat','lng'].filter(f => !mappedFields.has(f));
-                    if (missing.length > 0) {
-                        alert(`Недостасуваат колони: ${missing.join(', ')}\n\nПронајдени колони: ${headers.join(', ')}\n\nПотребни: id, name, lat, lng`);
-                        e.target.value = '';
-                        return;
-                    }
-
-                    const parsed = parseExcelRows(rows, colMap);
-                    if (parsed.length === 0) {
-                        alert('Нема валидни редови со координати.');
-                        e.target.value = '';
-                        return;
-                    }
-
-                    // Count channels
-                    const chCounts = {};
-                    parsed.forEach(l => { chCounts[l.channel] = (chCounts[l.channel] || 0) + 1; });
-
-                    // Build preview
-                    let previewHtml = `<div class="import-stats">
-                        <b>${parsed.length}</b> објекти од <b>${Object.keys(chCounts).length}</b> канали
-                    </div>`;
-                    previewHtml += '<div class="import-preview"><table><tr><th>Канал</th><th>Број</th></tr>';
-                    Object.entries(chCounts).sort((a,b) => b[1] - a[1]).forEach(([ch, cnt]) => {
-                        previewHtml += `<tr><td>${ch}</td><td>${cnt}</td></tr>`;
-                    });
-                    previewHtml += '</table></div>';
-
-                    // Show first 3 rows preview
-                    previewHtml += '<div class="import-hint">Првите 3 реда:</div><div class="import-preview"><table><tr><th>ID</th><th>Име</th><th>Канал</th></tr>';
-                    parsed.slice(0, 3).forEach(l => {
-                        previewHtml += `<tr><td>${l.id}</td><td>${l.name}</td><td>${l.channel}</td></tr>`;
-                    });
-                    previewHtml += '</table></div>';
-
-                    document.getElementById('import-preview').innerHTML = previewHtml;
-                    pendingImportData = parsed;
-                    document.getElementById('import-modal').classList.add('active');
-                } catch (err) {
-                    alert('Грешка при читање на фајлот: ' + err.message);
-                }
-                e.target.value = '';
-            };
-            reader.readAsArrayBuffer(file);
-        });
-
-        document.getElementById('btn-import-confirm').addEventListener('click', () => {
-            if (!pendingImportData) return;
-            const mode = document.querySelector('input[name="import-mode"]:checked').value;
-
-            if (mode === 'merge') {
-                const existingIds = new Set(locations.map(l => l.id));
-                const newLocs = pendingImportData.filter(l => !existingIds.has(l.id));
-                locations = locations.concat(newLocs);
-            } else {
-                locations = pendingImportData;
-            }
-
-            // Discover new channels and assign colors
-            let colorIdx = 0;
-            const allChannels = new Set(locations.map(l => l.channel));
-            allChannels.forEach(ch => {
-                if (!channelColors[ch]) {
-                    channelColors[ch] = extraColors[colorIdx % extraColors.length];
-                    colorIdx++;
-                }
-                activeChannels.add(ch);
-            });
-
-            // Save to localStorage and Firestore
-            localStorage.setItem('skopje_imported_locations', JSON.stringify(locations));
-            fsWriteShared('locations', { items: locations, channelColors: channelColors });
-
-            // Rebuild UI
-            buildLegend();
-            updateQuotaProgress();
-            refreshMarkers();
-
-            closeImportModal();
-
-            // Fit map to new bounds
-            if (locations.length > 0) {
-                const bounds = L.latLngBounds(locations.map(l => [l.lat, l.lng]));
-                map.fitBounds(bounds.pad(0.1));
-            }
-        });
-
-        document.getElementById('import-modal').addEventListener('click', (e) => {
-            if (e.target === document.getElementById('import-modal')) closeImportModal();
         });
 
     </script>
