@@ -721,68 +721,80 @@
 
         let pendingImport = null;
 
-        document.getElementById('import-file').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+        document.getElementById('import-file').addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            if (!file) { console.log('No file selected'); return; }
+            console.log('File selected:', file.name, file.size, 'bytes');
 
-            document.getElementById('import-info').innerHTML = '<p style="color:#888;">Вчитување на фајлот...</p>';
+            document.getElementById('import-info').innerHTML = '<p style="color:#888;">Вчитување: ' + file.name + ' (' + Math.round(file.size/1024) + ' KB)...</p>';
             document.getElementById('import-preview').style.display = 'block';
 
-            const reader = new FileReader();
-            reader.onerror = () => {
+            var reader = new FileReader();
+            reader.onerror = function() {
                 alert('Грешка при читање на фајлот.');
+                document.getElementById('import-preview').style.display = 'none';
                 e.target.value = '';
             };
-            reader.onload = (evt) => {
+            reader.onload = function(evt) {
+                console.log('File read complete, parsing...');
                 try {
-                    const data = new Uint8Array(evt.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                    const rows = XLSX.utils.sheet_to_json(sheet);
+                    var data = new Uint8Array(evt.target.result);
+                    var workbook = XLSX.read(data, { type: 'array' });
+                    console.log('Sheets found:', workbook.SheetNames);
+                    var sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    var rows = XLSX.utils.sheet_to_json(sheet);
+                    console.log('Rows parsed:', rows.length);
                     if (!rows.length) { alert('Фајлот е празен.'); document.getElementById('import-preview').style.display = 'none'; return; }
 
-                    const headers = Object.keys(rows[0]);
-                    const colMap = mapColumns(headers);
-                    const mappedFields = new Set(Object.values(colMap));
-                    const missing = ['id','name','lat','lng'].filter(f => !mappedFields.has(f));
+                    var headers = Object.keys(rows[0]);
+                    console.log('Headers found:', headers);
+                    var colMap = mapColumns(headers);
+                    console.log('Column mapping:', colMap);
+                    var mappedFields = new Set(Object.values(colMap));
+                    var missing = ['id','name','lat','lng'].filter(function(f) { return !mappedFields.has(f); });
                     if (missing.length > 0) {
-                        alert(`Недостасуваат колони: ${missing.join(', ')}\n\nПронајдени: ${headers.join(', ')}`);
+                        alert('Недостасуваат колони: ' + missing.join(', ') + '\n\nПронајдени: ' + headers.join(', ') + '\n\nПотребни: id, name, lat, lng');
+                        document.getElementById('import-preview').style.display = 'none';
                         e.target.value = ''; return;
                     }
 
-                    const parsed = [];
-                    rows.forEach(row => {
-                        const obj = {};
-                        Object.entries(colMap).forEach(([ec, f]) => { obj[f] = row[ec] != null ? String(row[ec]).trim() : ''; });
+                    var parsed = [];
+                    rows.forEach(function(row) {
+                        var obj = {};
+                        Object.entries(colMap).forEach(function(entry) { obj[entry[1]] = row[entry[0]] != null ? String(row[entry[0]]).trim() : ''; });
                         if (!obj.id || !obj.name || !obj.lat || !obj.lng) return;
-                        const lat = parseFloat(obj.lat), lng = parseFloat(obj.lng);
+                        var lat = parseFloat(obj.lat), lng = parseFloat(obj.lng);
                         if (isNaN(lat) || isNaN(lng)) return;
-                        parsed.push({ id: obj.id, name: obj.name, street: obj.street||'', lat, lng,
+                        parsed.push({ id: obj.id, name: obj.name, street: obj.street||'', lat: lat, lng: lng,
                             channel: obj.channel||'Other', bd_ter: obj.bd_ter||'', city: obj.city||'', region: obj.region||'' });
                     });
+                    console.log('Valid locations parsed:', parsed.length);
 
-                    if (!parsed.length) { alert('Нема валидни редови.'); e.target.value = ''; return; }
+                    if (!parsed.length) { alert('Нема валидни редови со координати.\n\nПервиот ред: ' + JSON.stringify(rows[0]).substring(0, 200)); document.getElementById('import-preview').style.display = 'none'; e.target.value = ''; return; }
 
-                    const chCounts = {};
-                    parsed.forEach(l => { chCounts[l.channel] = (chCounts[l.channel] || 0) + 1; });
+                    var chCounts = {};
+                    parsed.forEach(function(l) { chCounts[l.channel] = (chCounts[l.channel] || 0) + 1; });
 
-                    let html = `<div class="import-stats"><b>${parsed.length}</b> објекти од <b>${Object.keys(chCounts).length}</b> канали</div>`;
+                    var html = '<div class="import-stats"><b>' + parsed.length + '</b> објекти од <b>' + Object.keys(chCounts).length + '</b> канали</div>';
                     html += '<table><tr><th>Канал</th><th>Број</th></tr>';
-                    Object.entries(chCounts).sort((a,b) => b[1]-a[1]).forEach(([ch, cnt]) => {
-                        html += `<tr><td>${ch}</td><td>${cnt}</td></tr>`;
+                    Object.entries(chCounts).sort(function(a,b) { return b[1]-a[1]; }).forEach(function(entry) {
+                        html += '<tr><td>' + entry[0] + '</td><td>' + entry[1] + '</td></tr>';
                     });
                     html += '</table>';
                     html += '<p style="margin-top:8px;font-size:12px;color:#888;">Примерок:</p><table><tr><th>ID</th><th>Име</th><th>Канал</th><th>Град</th></tr>';
-                    parsed.slice(0, 3).forEach(l => {
-                        html += `<tr><td>${l.id}</td><td>${l.name}</td><td>${l.channel}</td><td>${l.city||'-'}</td></tr>`;
+                    parsed.slice(0, 3).forEach(function(l) {
+                        html += '<tr><td>' + l.id + '</td><td>' + l.name + '</td><td>' + l.channel + '</td><td>' + (l.city||'-') + '</td></tr>';
                     });
                     html += '</table>';
 
                     document.getElementById('import-info').innerHTML = html;
                     document.getElementById('import-preview').style.display = 'block';
                     pendingImport = parsed;
+                    console.log('Import ready, pendingImport set with', parsed.length, 'items');
                 } catch (err) {
-                    alert('Грешка: ' + err.message);
+                    console.error('Import parse error:', err);
+                    alert('Грешка при читање: ' + err.message);
+                    document.getElementById('import-preview').style.display = 'none';
                 }
                 e.target.value = '';
             };
@@ -790,7 +802,8 @@
         });
 
         document.getElementById('btn-import-confirm').addEventListener('click', async () => {
-            if (!pendingImport) return;
+            console.log('Import confirm clicked, pendingImport:', pendingImport ? pendingImport.length + ' items' : 'null');
+            if (!pendingImport) { alert('Нема податоци за импорт. Прво прикачи фајл.'); return; }
             const mode = document.querySelector('input[name="import-mode"]:checked').value;
 
             if (mode === 'merge') {
