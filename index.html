@@ -165,6 +165,39 @@
         #sync-status .sync-dot.offline { background: #e74c3c; }
         #sync-status .sync-dot.syncing { background: #f39c12; animation: pulse-ring 1s infinite; }
 
+        /* Login screen */
+        #login-screen {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: #2c3e50; z-index: 9999;
+            display: flex; justify-content: center; align-items: center;
+        }
+        #login-screen.hidden { display: none; }
+        .login-box {
+            background: #fff; border-radius: 12px; padding: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3); width: 300px;
+            text-align: center; font-family: Arial, sans-serif;
+        }
+        .login-box h2 { margin-bottom: 6px; color: #2c3e50; font-size: 20px; }
+        .login-box .subtitle { color: #888; font-size: 12px; margin-bottom: 20px; }
+        .login-box input {
+            width: 100%; padding: 10px 14px; border: 1px solid #ddd;
+            border-radius: 6px; font-size: 14px; margin-bottom: 10px; outline: none;
+        }
+        .login-box input:focus { border-color: #8e44ad; }
+        .login-box .btn-login {
+            width: 100%; padding: 12px; background: #8e44ad; color: #fff;
+            border: none; border-radius: 6px; font-size: 15px; font-weight: bold;
+            cursor: pointer; margin-top: 4px;
+        }
+        .login-box .btn-login:hover { background: #7d3c98; }
+        .login-error {
+            color: #e74c3c; font-size: 12px; margin-top: 8px; display: none;
+        }
+        #logged-user {
+            font-size: 11px; color: #fff; background: rgba(255,255,255,0.15);
+            padding: 2px 8px; border-radius: 10px; margin-left: 4px;
+        }
+
         #btn-admin {
             position: absolute; bottom: 120px; right: 10px; z-index: 1000;
             background: #8e44ad; color: #fff; border: none; border-radius: 8px;
@@ -460,8 +493,18 @@
     </style>
 </head>
 <body>
+    <div id="login-screen">
+        <div class="login-box">
+            <h2>Redmap</h2>
+            <div class="subtitle">Внеси го твоето корисничко име и лозинка</div>
+            <input type="text" id="login-user" placeholder="Корисничко име" autocomplete="username">
+            <input type="password" id="login-pass" placeholder="Лозинка" autocomplete="current-password">
+            <button class="btn-login" id="btn-login">Најави се</button>
+            <div class="login-error" id="login-error">Погрешно корисничко име или лозинка</div>
+        </div>
+    </div>
     <div id="map"></div>
-    <div id="sync-status"><span class="sync-dot syncing"></span><span id="sync-text">Поврзување...</span></div>
+    <div id="sync-status"><span class="sync-dot syncing"></span><span id="sync-text">Поврзување...</span><span id="logged-user"></span></div>
     <a id="btn-admin" href="admin.html">Админ</a>
     <button id="btn-daily-plan">Дневен план</button>
     <div id="daily-modal">
@@ -573,7 +616,7 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const auth = firebase.auth();
-        let currentUser = null;
+        let currentUser = null; // stores { username, displayName, role }
 
         function setSyncStatus(state, text) {
             const dot = document.querySelector('#sync-status .sync-dot');
@@ -582,17 +625,25 @@
             txt.textContent = text;
         }
 
+        // Simple hash for passwords (SHA-256)
+        async function hashPassword(password) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password + '_redmap_salt');
+            const hash = await crypto.subtle.digest('SHA-256', data);
+            return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+
         // Firestore helpers - write to both Firestore and localStorage
         function fsWriteShared(docId, data) {
             return db.collection('shared').doc(docId).set(data, { merge: true }).catch(e => console.warn('Firestore write error:', e));
         }
         function fsWriteUser(docId, data) {
             if (!currentUser) return Promise.resolve();
-            return db.collection('users').doc(currentUser.uid).collection('state').doc(docId).set(data, { merge: true }).catch(e => console.warn('Firestore write error:', e));
+            return db.collection('users').doc(currentUser.username).collection('state').doc(docId).set(data, { merge: true }).catch(e => console.warn('Firestore write error:', e));
         }
         function fsReadUser(docId) {
             if (!currentUser) return Promise.resolve(null);
-            return db.collection('users').doc(currentUser.uid).collection('state').doc(docId).get().then(d => d.exists ? d.data() : null).catch(e => { console.warn('Firestore read error:', e); return null; });
+            return db.collection('users').doc(currentUser.username).collection('state').doc(docId).get().then(d => d.exists ? d.data() : null).catch(e => { console.warn('Firestore read error:', e); return null; });
         }
 
         let locations = [
@@ -2793,21 +2844,74 @@
             }
         })();
 
-        // Firebase auth + full sync from Firestore
-        auth.signInAnonymously().then(() => {
-            console.log('Firebase auth OK');
-        }).catch(err => {
-            console.warn('Firebase auth error:', err);
-            setSyncStatus('offline', 'Офлајн режим');
-        });
-
-        auth.onAuthStateChanged(async (user) => {
-            if (!user) {
-                setSyncStatus('offline', 'Не е поврзан');
-                return;
+        // ---- Login System ----
+        // Check for saved session
+        const savedSession = localStorage.getItem('skopje_session');
+        if (savedSession) {
+            try {
+                const session = JSON.parse(savedSession);
+                currentUser = session;
+                document.getElementById('login-screen').classList.add('hidden');
+                initFirebaseAndSync();
+            } catch(e) {
+                localStorage.removeItem('skopje_session');
             }
-            currentUser = user;
+        }
+
+        // Login button
+        document.getElementById('btn-login').addEventListener('click', doLogin);
+        document.getElementById('login-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+        document.getElementById('login-user').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('login-pass').focus(); });
+
+        async function doLogin() {
+            const username = document.getElementById('login-user').value.trim().toLowerCase();
+            const password = document.getElementById('login-pass').value;
+            const errorEl = document.getElementById('login-error');
+            errorEl.style.display = 'none';
+
+            if (!username || !password) { errorEl.textContent = 'Внеси корисничко име и лозинка'; errorEl.style.display = 'block'; return; }
+
+            try {
+                // First sign in anonymously to access Firestore
+                await auth.signInAnonymously();
+
+                // Check credentials
+                const profileDoc = await db.collection('userProfiles').doc(username).get();
+                if (!profileDoc.exists) {
+                    errorEl.textContent = 'Корисничкото име не постои'; errorEl.style.display = 'block'; return;
+                }
+
+                const profile = profileDoc.data();
+                const pwHash = await hashPassword(password);
+                if (pwHash !== profile.passwordHash) {
+                    errorEl.textContent = 'Погрешна лозинка'; errorEl.style.display = 'block'; return;
+                }
+
+                // Login successful
+                currentUser = { username, displayName: profile.displayName, role: profile.role };
+                localStorage.setItem('skopje_session', JSON.stringify(currentUser));
+                document.getElementById('login-screen').classList.add('hidden');
+                await syncFromFirestore();
+            } catch(err) {
+                console.warn('Login error:', err);
+                errorEl.textContent = 'Грешка при поврзување'; errorEl.style.display = 'block';
+            }
+        }
+
+        function initFirebaseAndSync() {
+            auth.signInAnonymously().then(() => syncFromFirestore()).catch(err => {
+                console.warn('Firebase auth error:', err);
+                setSyncStatus('offline', 'Офлајн режим');
+            });
+        }
+
+        async function syncFromFirestore() {
             setSyncStatus('syncing', 'Синхронизација...');
+            document.getElementById('logged-user').textContent = currentUser.displayName;
+
+            // Show admin button only for admins
+            const adminBtn = document.getElementById('btn-admin');
+            if (currentUser.role !== 'admin') adminBtn.style.display = 'none';
 
             try {
                 // Load shared locations from Firestore
@@ -2815,9 +2919,7 @@
                 if (sharedDoc.exists) {
                     const data = sharedDoc.data();
                     if (data.items && data.items.length > 0) {
-                        if (data.channelColors) {
-                            Object.assign(channelColors, data.channelColors);
-                        }
+                        if (data.channelColors) Object.assign(channelColors, data.channelColors);
                         applyImportedLocations(data.items);
                         localStorage.setItem('skopje_imported_locations', JSON.stringify(data.items));
                     }
@@ -2832,30 +2934,18 @@
                 ]);
 
                 if (visitedDoc) {
-                    // visitedDoc is the data itself (key:timestamp pairs)
                     const visitedData = { ...visitedDoc };
-                    delete visitedData._ ; // remove any merge artifacts
+                    delete visitedData._;
                     if (Object.keys(visitedData).length > 0) {
                         localStorage.setItem('skopje_visited', JSON.stringify(visitedData));
                     }
                 }
-
-                if (planDoc && planDoc.items) {
-                    localStorage.setItem('skopje_plan', JSON.stringify(planDoc.items));
-                }
-
+                if (planDoc && planDoc.items) localStorage.setItem('skopje_plan', JSON.stringify(planDoc.items));
                 if (quotasDoc) {
-                    if (quotasDoc.quotas) {
-                        localStorage.setItem('skopje_channel_quotas', JSON.stringify(quotasDoc.quotas));
-                    }
-                    if (quotasDoc.resetTime) {
-                        localStorage.setItem('skopje_quota_reset', quotasDoc.resetTime);
-                    }
+                    if (quotasDoc.quotas) localStorage.setItem('skopje_channel_quotas', JSON.stringify(quotasDoc.quotas));
+                    if (quotasDoc.resetTime) localStorage.setItem('skopje_quota_reset', quotasDoc.resetTime);
                 }
-
-                if (savedPlansDoc && savedPlansDoc.plans) {
-                    localStorage.setItem('skopje_saved_plans', JSON.stringify(savedPlansDoc.plans));
-                }
+                if (savedPlansDoc && savedPlansDoc.plans) localStorage.setItem('skopje_saved_plans', JSON.stringify(savedPlansDoc.plans));
 
                 // Rebuild UI with synced data
                 buildLegend();
@@ -2864,18 +2954,14 @@
                 renderPlanPanel();
                 renderSavedPlans();
 
-                setSyncStatus('online', `Поврзан (${user.uid.substring(0, 6)})`);
+                setSyncStatus('online', currentUser.displayName);
 
-                // Auto-hide status after 3s
-                setTimeout(() => {
-                    document.getElementById('sync-status').style.opacity = '0.4';
-                }, 3000);
-
+                setTimeout(() => { document.getElementById('sync-status').style.opacity = '0.4'; }, 3000);
             } catch (err) {
                 console.warn('Firestore sync error:', err);
                 setSyncStatus('offline', 'Грешка при синхр.');
             }
-        });
+        }
 
     </script>
 </body>
