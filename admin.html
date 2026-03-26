@@ -357,12 +357,20 @@
             setSyncStatus('syncing', 'Синхронизација...');
 
             try {
-                // Load locations
+                // Load locations (supports chunked storage)
                 const sharedDoc = await db.collection('shared').doc('locations').get();
                 if (sharedDoc.exists) {
                     const data = sharedDoc.data();
-                    if (data.items) locations = data.items;
                     if (data.channelColors) Object.assign(channelColors, data.channelColors);
+                    if (data.chunked && data.chunkCount) {
+                        locations = [];
+                        for (let i = 0; i < data.chunkCount; i++) {
+                            const chunk = await db.collection('shared').doc('locations_' + i).get();
+                            if (chunk.exists && chunk.data().items) locations = locations.concat(chunk.data().items);
+                        }
+                    } else if (data.items) {
+                        locations = data.items;
+                    }
                 }
                 if (locations.length === 0) {
                     const saved = localStorage.getItem('skopje_imported_locations');
@@ -716,14 +724,22 @@
         document.getElementById('import-file').addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
+
+            document.getElementById('import-info').innerHTML = '<p style="color:#888;">Вчитување на фајлот...</p>';
+            document.getElementById('import-preview').style.display = 'block';
+
             const reader = new FileReader();
+            reader.onerror = () => {
+                alert('Грешка при читање на фајлот.');
+                e.target.value = '';
+            };
             reader.onload = (evt) => {
                 try {
                     const data = new Uint8Array(evt.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
                     const sheet = workbook.Sheets[workbook.SheetNames[0]];
                     const rows = XLSX.utils.sheet_to_json(sheet);
-                    if (!rows.length) { alert('Фајлот е празен.'); return; }
+                    if (!rows.length) { alert('Фајлот е празен.'); document.getElementById('import-preview').style.display = 'none'; return; }
 
                     const headers = Object.keys(rows[0]);
                     const colMap = mapColumns(headers);
@@ -794,14 +810,37 @@
             });
 
             // Save
+            const btn = document.getElementById('btn-import-confirm');
+            btn.textContent = 'Зачувување...';
+            btn.disabled = true;
             localStorage.setItem('skopje_imported_locations', JSON.stringify(locations));
             try {
-                await db.collection('shared').doc('locations').set({ items: locations, channelColors: channelColors });
+                // Firestore doc limit is 1MB. For large datasets, save in chunks
+                if (JSON.stringify(locations).length > 800000) {
+                    // Split into chunks of 500
+                    const chunkSize = 500;
+                    for (let i = 0; i < locations.length; i += chunkSize) {
+                        const chunk = locations.slice(i, i + chunkSize);
+                        const chunkId = Math.floor(i / chunkSize);
+                        await db.collection('shared').doc('locations_' + chunkId).set({ items: chunk });
+                    }
+                    await db.collection('shared').doc('locations').set({
+                        chunked: true,
+                        chunkCount: Math.ceil(locations.length / chunkSize),
+                        channelColors: channelColors,
+                        totalCount: locations.length
+                    });
+                } else {
+                    await db.collection('shared').doc('locations').set({ items: locations, channelColors: channelColors });
+                }
                 setSyncStatus('online', 'Зачувано!');
             } catch(e) {
                 console.warn('Firestore save error:', e);
                 setSyncStatus('offline', 'Грешка при зачувување');
+                alert('Грешка при зачувување во база: ' + e.message);
             }
+            btn.textContent = 'Импортирај';
+            btn.disabled = false;
 
             pendingImport = null;
             document.getElementById('import-preview').style.display = 'none';

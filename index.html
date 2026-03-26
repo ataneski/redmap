@@ -2914,14 +2914,24 @@
             if (currentUser.role !== 'admin') adminBtn.style.display = 'none';
 
             try {
-                // Load shared locations from Firestore
+                // Load shared locations from Firestore (supports chunked storage)
                 const sharedDoc = await db.collection('shared').doc('locations').get();
                 if (sharedDoc.exists) {
                     const data = sharedDoc.data();
-                    if (data.items && data.items.length > 0) {
-                        if (data.channelColors) Object.assign(channelColors, data.channelColors);
-                        applyImportedLocations(data.items);
-                        localStorage.setItem('skopje_imported_locations', JSON.stringify(data.items));
+                    if (data.channelColors) Object.assign(channelColors, data.channelColors);
+                    let loadedItems = null;
+                    if (data.chunked && data.chunkCount) {
+                        loadedItems = [];
+                        for (let i = 0; i < data.chunkCount; i++) {
+                            const chunk = await db.collection('shared').doc('locations_' + i).get();
+                            if (chunk.exists && chunk.data().items) loadedItems = loadedItems.concat(chunk.data().items);
+                        }
+                    } else if (data.items && data.items.length > 0) {
+                        loadedItems = data.items;
+                    }
+                    if (loadedItems && loadedItems.length > 0) {
+                        applyImportedLocations(loadedItems);
+                        localStorage.setItem('skopje_imported_locations', JSON.stringify(loadedItems));
                     }
                 }
 
