@@ -2215,6 +2215,8 @@
                 <div class="popup-name">${loc.name}</div>
                 <div class="popup-row"><b>Улица:</b> ${loc.street}</div>
                 ${loc.city ? `<div class="popup-row"><b>Град:</b> ${loc.city}</div>` : ''}
+                ${loc.municipality ? `<div class="popup-row"><b>Општина:</b> ${loc.municipality}</div>` : ''}
+                ${loc.suburb ? `<div class="popup-row"><b>Населба:</b> ${loc.suburb}</div>` : ''}
                 ${loc.region ? `<div class="popup-row"><b>Регион:</b> ${loc.region}</div>` : ''}
                 ${loc.bd_ter ? `<div class="popup-row"><b>BD Тер:</b> ${loc.bd_ter}</div>` : ''}
                 <div class="popup-row"><b>ID:</b> ${loc.id}</div>

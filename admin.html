@@ -242,6 +242,26 @@
             </div>
         </div>
 
+        <!-- Geocoding -->
+        <div class="card">
+            <h2>Додај општина/населба од координати</h2>
+            <p style="font-size:13px;color:#666;margin-bottom:12px;">Користи OpenStreetMap за автоматски да се најде општина и населба за секоја локација врз основа на координатите. Процесот трае ~15 мин за 4000+ локации.</p>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                <button class="btn-create" id="btn-geocode" style="background:#2980b9;">Започни геокодирање</button>
+                <button class="btn-delete" id="btn-geocode-stop" style="display:none;">Стопирај</button>
+                <span id="geocode-status" style="font-size:13px;color:#888;"></span>
+            </div>
+            <div id="geocode-progress" style="display:none;margin-top:12px;">
+                <div style="background:#eee;border-radius:6px;height:20px;overflow:hidden;">
+                    <div id="geocode-bar" style="background:#2980b9;height:100%;width:0%;transition:width 0.3s;border-radius:6px;"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                    <span id="geocode-count" style="font-size:11px;color:#888;">0 / 0</span>
+                    <span id="geocode-eta" style="font-size:11px;color:#888;"></span>
+                </div>
+            </div>
+        </div>
+
         <!-- Channel Stats -->
         <div class="card">
             <h2>Статистика по канали</h2>
@@ -899,6 +919,105 @@
             e.preventDefault();
             importArea.style.borderColor = '#ccc';
             if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+        });
+
+        // ---- Geocoding ----
+        var geocodeRunning = false;
+
+        function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+
+        async function reverseGeocode(lat, lng) {
+            var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=16&addressdetails=1&accept-language=mk';
+            var resp = await fetch(url, { headers: { 'User-Agent': 'RedmapAdmin/1.0' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            return resp.json();
+        }
+
+        document.getElementById('btn-geocode').addEventListener('click', async function() {
+            if (locations.length === 0) { alert('Нема локации за геокодирање. Прво импортирај.'); return; }
+            if (!confirm('Ќе се додаде општина и населба за ' + locations.length + ' локации.\nОва трае ~' + Math.ceil(locations.length / 300) + ' минути.\n\nПродолжи?')) return;
+
+            geocodeRunning = true;
+            var btn = document.getElementById('btn-geocode');
+            var stopBtn = document.getElementById('btn-geocode-stop');
+            var status = document.getElementById('geocode-status');
+            var progress = document.getElementById('geocode-progress');
+            var bar = document.getElementById('geocode-bar');
+            var countEl = document.getElementById('geocode-count');
+            var etaEl = document.getElementById('geocode-eta');
+
+            btn.disabled = true;
+            stopBtn.style.display = 'inline-block';
+            progress.style.display = 'block';
+            var startTime = Date.now();
+            var processed = 0;
+            var errors = 0;
+            var skipped = 0;
+
+            for (var i = 0; i < locations.length; i++) {
+                if (!geocodeRunning) break;
+
+                var loc = locations[i];
+                // Skip if already has municipality data
+                if (loc.municipality && loc.municipality.length > 1) { skipped++; processed++; continue; }
+
+                try {
+                    var data = await reverseGeocode(loc.lat, loc.lng);
+                    var addr = data.address || {};
+                    loc.municipality = addr.municipality || addr.city || addr.town || addr.county || '';
+                    loc.suburb = addr.suburb || addr.neighbourhood || addr.village || addr.hamlet || '';
+                    if (!loc.city && (addr.city || addr.town)) loc.city = addr.city || addr.town || '';
+                } catch(e) {
+                    errors++;
+                    console.warn('Geocode error for', loc.name, ':', e.message);
+                }
+
+                processed++;
+                var pct = Math.round(processed / locations.length * 100);
+                bar.style.width = pct + '%';
+                countEl.textContent = processed + ' / ' + locations.length + (errors > 0 ? ' (' + errors + ' грешки)' : '') + (skipped > 0 ? ' (' + skipped + ' прескокнати)' : '');
+                status.textContent = 'Обработка: ' + loc.name;
+
+                var elapsed = (Date.now() - startTime) / 1000;
+                var rate = (processed - skipped) / elapsed;
+                var remaining = (locations.length - processed) / Math.max(rate, 0.1);
+                etaEl.textContent = '~' + Math.ceil(remaining / 60) + ' мин преостанати';
+
+                // Rate limit: ~5 requests per second for non-skipped
+                if (!loc.municipality || loc.municipality.length <= 1) {
+                    await sleep(220);
+                }
+            }
+
+            // Save enriched data
+            status.textContent = 'Зачувување...';
+            localStorage.setItem('skopje_imported_locations', JSON.stringify(locations));
+            try {
+                var chunkSize = 300;
+                var chunkCount = Math.ceil(locations.length / chunkSize);
+                for (var j = 0; j < locations.length; j += chunkSize) {
+                    var chunk = locations.slice(j, j + chunkSize);
+                    var chunkId = Math.floor(j / chunkSize);
+                    await db.collection('shared').doc('locations_' + chunkId).set({ items: chunk });
+                }
+                await db.collection('shared').doc('locations').set({
+                    chunked: true, chunkCount: chunkCount,
+                    channelColors: channelColors, totalCount: locations.length
+                });
+                status.textContent = 'Готово! ' + processed + ' локации обработени.';
+            } catch(e) {
+                status.textContent = 'Зачувано локално, грешка при Firestore: ' + e.message;
+            }
+
+            btn.disabled = false;
+            stopBtn.style.display = 'none';
+            geocodeRunning = false;
+            renderAll();
+        });
+
+        document.getElementById('btn-geocode-stop').addEventListener('click', function() {
+            geocodeRunning = false;
+            document.getElementById('geocode-status').textContent = 'Стопирано. Обработените локации се зачувани.';
         });
     </script>
 </body>
