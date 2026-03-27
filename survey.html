@@ -68,27 +68,39 @@
             flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #f4f5f7;
         }
         #brands-bar {
-            display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px;
-            background: #fff; border-bottom: 1px solid #e0e0e0; min-height: 44px;
+            display: flex; gap: 5px; padding: 6px 10px;
+            background: #fff; border-bottom: 1px solid #e0e0e0;
+            overflow-x: auto; -webkit-overflow-scrolling: touch;
+            flex-shrink: 0; scrollbar-width: none;
         }
+        #brands-bar::-webkit-scrollbar { display: none; }
         .brand-chip {
-            padding: 6px 14px; border-radius: 16px; border: 2px solid #2980b9;
-            background: #fff; color: #2980b9; font-size: 13px; font-weight: bold;
-            cursor: pointer; white-space: nowrap; min-height: 36px;
-            display: flex; align-items: center; transition: all 0.15s;
+            padding: 4px 12px; border-radius: 14px; border: 2px solid #2980b9;
+            background: #fff; color: #2980b9; font-size: 12px; font-weight: bold;
+            cursor: pointer; white-space: nowrap; min-height: 30px;
+            display: flex; align-items: center; transition: all 0.15s; flex-shrink: 0;
         }
         .brand-chip:hover { background: #ebf5fb; }
         .brand-chip.active { background: #2980b9; color: #fff; }
-        #filter-bar {
-            display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 12px;
-            background: #f9f9f9; border-bottom: 1px solid #e0e0e0; align-items: center;
+        .brand-chip .brand-count {
+            background: rgba(0,0,0,0.1); border-radius: 8px; padding: 0 5px;
+            margin-left: 4px; font-size: 10px;
         }
-        .filter-group { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-        .filter-label { font-size: 11px; color: #888; font-weight: bold; margin-right: 2px; }
+        .brand-chip.active .brand-count { background: rgba(255,255,255,0.3); }
+        #filter-bar {
+            display: flex; gap: 6px; padding: 4px 10px;
+            background: #f9f9f9; border-bottom: 1px solid #e0e0e0; align-items: center;
+            overflow-x: auto; -webkit-overflow-scrolling: touch;
+            flex-shrink: 0; scrollbar-width: none;
+        }
+        #filter-bar::-webkit-scrollbar { display: none; }
+        .filter-group { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+        .filter-sep { width: 1px; height: 20px; background: #ddd; margin: 0 4px; flex-shrink: 0; }
+        .filter-label { font-size: 10px; color: #888; font-weight: bold; margin-right: 2px; flex-shrink: 0; }
         .filter-chip {
-            padding: 4px 10px; border-radius: 12px; border: 1px solid #ccc;
-            background: #fff; color: #555; font-size: 12px; font-weight: bold;
-            cursor: pointer; min-height: 28px; transition: all 0.15s;
+            padding: 3px 8px; border-radius: 10px; border: 1px solid #ccc;
+            background: #fff; color: #555; font-size: 11px; font-weight: bold;
+            cursor: pointer; min-height: 24px; transition: all 0.15s; flex-shrink: 0;
         }
         .filter-chip:hover { border-color: #2980b9; }
         .filter-chip.active { background: #2980b9; color: #fff; border-color: #2980b9; }
@@ -285,6 +297,7 @@
                     <button class="filter-chip" data-filter="type" data-value="NRGB">Стакло</button>
                     <button class="filter-chip" data-filter="type" data-value="Toceno">Точено</button>
                 </div>
+                <div class="filter-sep"></div>
                 <div class="filter-group">
                     <span class="filter-label">Големина:</span>
                     <button class="filter-chip active" data-filter="size" data-value="">Сите</button>
@@ -472,7 +485,7 @@
                     brands[b]++;
                 }
             });
-            return Object.keys(brands).sort();
+            return brands;
         }
 
         // ---- Render brands ----
@@ -481,14 +494,30 @@
             container.innerHTML = '';
             if (!activeCategory) return;
             var brands = getBrands();
-            brands.forEach(function(brand) {
+            // Add "Сите" chip first
+            var allChip = document.createElement('button');
+            allChip.className = 'brand-chip' + (!activeBrand ? ' active' : '');
+            allChip.innerHTML = 'Сите';
+            allChip.addEventListener('click', function() {
+                activeBrand = null;
+                renderBrands();
+                renderProductsList();
+            });
+            container.appendChild(allChip);
+
+            Object.keys(brands).sort().forEach(function(brand) {
                 var chip = document.createElement('button');
                 chip.className = 'brand-chip' + (activeBrand === brand ? ' active' : '');
-                chip.textContent = brand;
+                chip.innerHTML = brand + '<span class="brand-count">' + brands[brand] + '</span>';
                 chip.addEventListener('click', function() {
                     activeBrand = (activeBrand === brand) ? null : brand;
                     renderBrands();
                     renderProductsList();
+                    // Scroll active into view
+                    setTimeout(function() {
+                        var active = container.querySelector('.brand-chip.active');
+                        if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                    }, 50);
                 });
                 container.appendChild(chip);
             });
