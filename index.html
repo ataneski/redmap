@@ -2365,6 +2365,27 @@
             filterSuburb = document.getElementById('filter-suburb').value;
             filterRegion = document.getElementById('filter-region').value;
             refreshMarkers();
+            zoomToFiltered();
+        }
+
+        function zoomToFiltered() {
+            // Collect all visible locations matching current filters
+            var matched = locations.filter(function(loc) {
+                if (!activeChannels.has(loc.channel)) return false;
+                if (searchTerm && !loc.name.toLowerCase().includes(searchTerm) &&
+                    !loc.street.toLowerCase().includes(searchTerm) &&
+                    !loc.id.toLowerCase().includes(searchTerm)) return false;
+                if (filterChannel && loc.channel !== filterChannel) return false;
+                if (filterCity && (loc.city || '') !== filterCity) return false;
+                if (filterMunicipality && (loc.municipality || '') !== filterMunicipality) return false;
+                if (filterSuburb && (loc.suburb || '') !== filterSuburb) return false;
+                if (filterRegion && (loc.region || '') !== filterRegion) return false;
+                return true;
+            });
+            if (matched.length > 0 && matched.length < locations.length) {
+                var bounds = L.latLngBounds(matched.map(function(l) { return [l.lat, l.lng]; }));
+                map.fitBounds(bounds.pad(0.1));
+            }
         }
 
         function clearFilters() {
