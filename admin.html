@@ -63,7 +63,7 @@
         .import-area svg { width: 40px; height: 40px; fill: #8e44ad; margin-bottom: 8px; }
         .import-area p { color: #888; font-size: 13px; }
         .import-area .main-text { color: #333; font-size: 15px; font-weight: bold; margin-bottom: 4px; }
-        #import-file { display: none; }
+
 
         .import-preview { margin-top: 16px; display: none; }
         .import-preview table { width: 100%; border-collapse: collapse; font-size: 12px; }
@@ -223,12 +223,11 @@
         <!-- Import -->
         <div class="card">
             <h2>Импорт од Excel</h2>
-            <div class="import-area" id="import-area" onclick="document.getElementById('import-file').click()">
+            <div class="import-area" id="import-area">
                 <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 2l5 5h-5V4zM8 17V9h2v5.59l1.29-1.3 1.42 1.42L9 18.41 5.29 14.7l1.42-1.41L8 14.59V17z"/></svg>
                 <p class="main-text">Кликни или повлечи Excel фајл</p>
                 <p>.xlsx, .xls, .csv формат</p>
             </div>
-            <input type="file" id="import-file" accept=".xlsx,.xls,.csv">
             <div class="import-preview" id="import-preview">
                 <div id="import-info"></div>
                 <div class="import-mode">
@@ -721,9 +720,17 @@
 
         let pendingImport = null;
 
-        document.getElementById('import-file').addEventListener('change', function(e) {
-            var file = e.target.files[0];
-            if (!file) { console.log('No file selected'); return; }
+        // Create a fresh file input each time to avoid stale state
+        function openFilePicker() {
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.xlsx,.xls,.csv';
+            input.onchange = function() { handleFile(input.files[0]); };
+            input.click();
+        }
+
+        function handleFile(file) {
+            if (!file) return;
             console.log('File selected:', file.name, file.size, 'bytes');
 
             document.getElementById('import-info').innerHTML = '<p style="color:#888;">Вчитување: ' + file.name + ' (' + Math.round(file.size/1024) + ' KB)...</p>';
@@ -733,7 +740,6 @@
             reader.onerror = function() {
                 alert('Грешка при читање на фајлот.');
                 document.getElementById('import-preview').style.display = 'none';
-                e.target.value = '';
             };
             reader.onload = function(evt) {
                 console.log('File read complete, parsing...');
@@ -755,7 +761,7 @@
                     if (missing.length > 0) {
                         alert('Недостасуваат колони: ' + missing.join(', ') + '\n\nПронајдени: ' + headers.join(', ') + '\n\nПотребни: id, name, lat, lng');
                         document.getElementById('import-preview').style.display = 'none';
-                        e.target.value = ''; return;
+                        return;
                     }
 
                     var parsed = [];
@@ -770,7 +776,7 @@
                     });
                     console.log('Valid locations parsed:', parsed.length);
 
-                    if (!parsed.length) { alert('Нема валидни редови со координати.\n\nПервиот ред: ' + JSON.stringify(rows[0]).substring(0, 200)); document.getElementById('import-preview').style.display = 'none'; e.target.value = ''; return; }
+                    if (!parsed.length) { alert('Нема валидни редови со координати.'); document.getElementById('import-preview').style.display = 'none'; return; }
 
                     var chCounts = {};
                     parsed.forEach(function(l) { chCounts[l.channel] = (chCounts[l.channel] || 0) + 1; });
@@ -788,7 +794,6 @@
                     html += '</table>';
 
                     document.getElementById('import-info').innerHTML = html;
-                    document.getElementById('import-preview').style.display = 'block';
                     pendingImport = parsed;
                     console.log('Import ready, pendingImport set with', parsed.length, 'items');
                 } catch (err) {
@@ -796,10 +801,12 @@
                     alert('Грешка при читање: ' + err.message);
                     document.getElementById('import-preview').style.display = 'none';
                 }
-                e.target.value = '';
             };
             reader.readAsArrayBuffer(file);
-        });
+        }
+
+        // Click to open file picker
+        document.getElementById('import-area').addEventListener('click', openFilePicker);
 
         document.getElementById('btn-import-confirm').addEventListener('click', async () => {
             console.log('Import confirm clicked, pendingImport:', pendingImport ? pendingImport.length + ' items' : 'null');
@@ -878,19 +885,13 @@
         });
 
         // Drag & drop
-        const importArea = document.getElementById('import-area');
-        importArea.addEventListener('dragover', (e) => { e.preventDefault(); importArea.style.borderColor = '#8e44ad'; });
-        importArea.addEventListener('dragleave', () => { importArea.style.borderColor = '#ccc'; });
-        importArea.addEventListener('drop', (e) => {
+        var importArea = document.getElementById('import-area');
+        importArea.addEventListener('dragover', function(e) { e.preventDefault(); importArea.style.borderColor = '#8e44ad'; });
+        importArea.addEventListener('dragleave', function() { importArea.style.borderColor = '#ccc'; });
+        importArea.addEventListener('drop', function(e) {
             e.preventDefault();
             importArea.style.borderColor = '#ccc';
-            const file = e.dataTransfer.files[0];
-            if (file) {
-                const dt = new DataTransfer();
-                dt.items.add(file);
-                document.getElementById('import-file').files = dt.files;
-                document.getElementById('import-file').dispatchEvent(new Event('change'));
-            }
+            if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
         });
     </script>
 </body>
