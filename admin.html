@@ -770,12 +770,16 @@
                         var obj = {};
                         Object.entries(colMap).forEach(function(entry) { obj[entry[1]] = row[entry[0]] != null ? String(row[entry[0]]).trim() : ''; });
                         if (!obj.id || !obj.name || !obj.lat || !obj.lng) return;
-                        var lat = parseFloat(obj.lat), lng = parseFloat(obj.lng);
+                        var lat = parseFloat(String(obj.lat).replace(',', '.')), lng = parseFloat(String(obj.lng).replace(',', '.'));
                         if (isNaN(lat) || isNaN(lng)) return;
                         parsed.push({ id: obj.id, name: obj.name, street: obj.street||'', lat: lat, lng: lng,
                             channel: obj.channel||'Other', bd_ter: obj.bd_ter||'', city: obj.city||'', region: obj.region||'' });
                     });
                     console.log('Valid locations parsed:', parsed.length);
+                    if (parsed.length > 0) {
+                        console.log('First 3 locations coords:', parsed.slice(0,3).map(function(l) { return l.name + ': lat=' + l.lat + ' lng=' + l.lng; }));
+                        console.log('Raw Excel values for first row:', 'lat=' + rows[0][Object.keys(colMap).find(function(k){return colMap[k]==='lat';})] + ' lng=' + rows[0][Object.keys(colMap).find(function(k){return colMap[k]==='lng';})]);
+                    }
 
                     if (!parsed.length) { alert('Нема валидни редови со координати.'); document.getElementById('import-preview').style.display = 'none'; return; }
 
