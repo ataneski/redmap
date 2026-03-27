@@ -101,6 +101,12 @@
         .btn-plan:hover { background: #d68910; }
         .btn-plan.in-plan { background: #e74c3c; }
         .btn-plan.in-plan:hover { background: #c0392b; }
+        .btn-survey {
+            flex: 1; padding: 6px 10px;
+            background: #8e44ad; color: #fff; border: none; border-radius: 4px;
+            font-size: 12px; font-weight: bold; cursor: pointer; text-align: center;
+        }
+        .btn-survey:hover { background: #7d3c98; }
         .btn-radius {
             flex: 1; padding: 6px 10px;
             background: #27ae60; color: #fff; border: none; border-radius: 4px;
@@ -1925,6 +1931,10 @@
             window.open(`https://www.google.com/maps/dir/${origin}/${lat},${lng}`, '_blank');
         }
 
+        function openSurvey(locationId, locationName) {
+            window.open('survey.html?location=' + encodeURIComponent(locationId) + '&name=' + encodeURIComponent(locationName), '_blank');
+        }
+
         function planToggleVisited(id) {
             const nowVisited = !isVisited(id);
             setVisited(id, nowVisited);
@@ -2279,6 +2289,7 @@
                 </div>
                 <div class="popup-btns">
                     <button class="btn-directions" onclick="openGoogleNav(${loc.lat},${loc.lng})">&#9654; Навигација</button>
+                    <button class="btn-survey" onclick="openSurvey('${loc.id}','${loc.name.replace(/'/g, "\\'")}')">&#128203; Анкета</button>
                     <button class="${planBtnClass}" onclick="togglePlan('${loc.id}')">&#9776; ${planBtnText}</button>
                     <button class="btn-radius" onclick="openRadiusModal('${loc.id}')">&#11044; + Блиски</button>
                 </div>
