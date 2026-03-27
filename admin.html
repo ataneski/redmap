@@ -245,7 +245,7 @@
         <!-- Geocoding -->
         <div class="card">
             <h2>Додај општина/населба од координати</h2>
-            <p style="font-size:13px;color:#666;margin-bottom:12px;">Користи OpenStreetMap за автоматски да се најде општина и населба за секоја локација врз основа на координатите. Процесот трае ~15 мин за 4000+ локации.</p>
+            <p style="font-size:13px;color:#666;margin-bottom:12px;">Користи OpenStreetMap за автоматски да се најде општина и населба за секоја локација врз основа на координатите. Процесот трае ~70 мин за 4000+ локации (1 барање/сек). Може да го стопираш и продолжиш подоцна.</p>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                 <button class="btn-create" id="btn-geocode" style="background:#2980b9;">Започни геокодирање</button>
                 <button class="btn-delete" id="btn-geocode-stop" style="display:none;">Стопирај</button>
@@ -926,16 +926,39 @@
 
         function sleep(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
 
-        async function reverseGeocode(lat, lng) {
-            var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=16&addressdetails=1&accept-language=mk';
-            var resp = await fetch(url, { headers: { 'User-Agent': 'RedmapAdmin/1.0' } });
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            return resp.json();
+        // Use JSONP to bypass CORS
+        var geocodeCounter = 0;
+        function reverseGeocode(lat, lng) {
+            return new Promise(function(resolve, reject) {
+                var cbName = '_geocodeCb' + (++geocodeCounter);
+                var timeout = setTimeout(function() {
+                    delete window[cbName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    reject(new Error('Timeout'));
+                }, 10000);
+
+                window[cbName] = function(data) {
+                    clearTimeout(timeout);
+                    delete window[cbName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    resolve(data);
+                };
+
+                var script = document.createElement('script');
+                script.src = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=16&addressdetails=1&accept-language=mk&json_callback=' + cbName;
+                script.onerror = function() {
+                    clearTimeout(timeout);
+                    delete window[cbName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    reject(new Error('Network error'));
+                };
+                document.head.appendChild(script);
+            });
         }
 
         document.getElementById('btn-geocode').addEventListener('click', async function() {
             if (locations.length === 0) { alert('Нема локации за геокодирање. Прво импортирај.'); return; }
-            if (!confirm('Ќе се додаде општина и населба за ' + locations.length + ' локации.\nОва трае ~' + Math.ceil(locations.length / 300) + ' минути.\n\nПродолжи?')) return;
+            if (!confirm('Ќе се додаде општина и населба за ' + locations.length + ' локации.\nОва трае ~' + Math.ceil(locations.length / 60) + ' минути (1 req/sec).\nМоже да го стопираш и продолжиш подоцна.\n\nПродолжи?')) return;
 
             geocodeRunning = true;
             var btn = document.getElementById('btn-geocode');
@@ -983,10 +1006,8 @@
                 var remaining = (locations.length - processed) / Math.max(rate, 0.1);
                 etaEl.textContent = '~' + Math.ceil(remaining / 60) + ' мин преостанати';
 
-                // Rate limit: ~5 requests per second for non-skipped
-                if (!loc.municipality || loc.municipality.length <= 1) {
-                    await sleep(220);
-                }
+                // Rate limit: 1 request per second (Nominatim policy)
+                await sleep(1100);
             }
 
             // Save enriched data
