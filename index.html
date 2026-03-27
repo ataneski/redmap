@@ -432,14 +432,37 @@
         #search-box {
             position: absolute; top: 10px; left: 10px; z-index: 1000;
             background: white; border-radius: 8px; padding: 8px 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.25); min-width: 280px;
         }
-        #search-box input {
+        #search-box input[type="text"] {
             border: 1px solid #ddd; border-radius: 4px; padding: 6px 10px;
-            font-size: 13px; width: 250px; outline: none;
+            font-size: 13px; width: 100%; outline: none; margin-bottom: 4px;
         }
-        #search-box input:focus { border-color: #4A90D9; }
-        #result-count { font-size: 11px; color: #888; margin-top: 4px; }
+        #search-box input[type="text"]:focus { border-color: #4A90D9; }
+        #result-count { font-size: 11px; color: #888; margin-top: 2px; }
+        #filter-toggle {
+            font-size: 11px; color: #4A90D9; cursor: pointer; user-select: none;
+            display: inline-block; margin-top: 2px;
+        }
+        #filter-toggle:hover { text-decoration: underline; }
+        #filter-panel {
+            display: none; margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee;
+        }
+        #filter-panel.open { display: block; }
+        .filter-row {
+            display: flex; gap: 6px; margin-bottom: 6px; align-items: center;
+        }
+        .filter-row label { font-size: 11px; color: #666; min-width: 60px; flex-shrink: 0; }
+        .filter-row select {
+            flex: 1; padding: 4px 6px; border: 1px solid #ddd; border-radius: 4px;
+            font-size: 12px; outline: none; background: #fff;
+        }
+        .filter-row select:focus { border-color: #4A90D9; }
+        .filter-clear {
+            font-size: 11px; color: #e74c3c; cursor: pointer; padding: 2px 8px;
+            border: 1px solid #e74c3c; border-radius: 4px; background: none;
+        }
+        .filter-clear:hover { background: #fef0f0; }
 
 
         @keyframes pulse-ring {
@@ -460,8 +483,8 @@
             animation: pulse-ring 1.5s ease-out infinite;
         }
         @media (max-width: 768px) {
-            #search-box { left: 10px; right: 10px; padding: 6px 10px; }
-            #search-box input { width: 100%; font-size: 16px; padding: 8px 10px; }
+            #search-box { left: 10px; right: 10px; padding: 6px 10px; min-width: unset; max-height: 80vh; overflow-y: auto; }
+            #search-box input[type="text"] { width: 100%; font-size: 16px; padding: 8px 10px; }
 
             #plan-panel {
                 top: auto; bottom: 0; left: 0; right: 0;
@@ -539,8 +562,36 @@
         <span>+ План</span>
     </button>
     <div id="search-box">
-        <input type="text" id="search" placeholder="Пребарувај по име или улица...">
-        <div id="result-count"></div>
+        <input type="text" id="search" placeholder="Пребарувај по име, улица или ID...">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div id="result-count"></div>
+            <span id="filter-toggle" onclick="toggleFilters()">Филтри ▼</span>
+        </div>
+        <div id="filter-panel">
+            <div class="filter-row">
+                <label>Канал:</label>
+                <select id="filter-channel" onchange="applyFilters()"><option value="">Сите</option></select>
+            </div>
+            <div class="filter-row">
+                <label>Град:</label>
+                <select id="filter-city" onchange="applyFilters()"><option value="">Сите</option></select>
+            </div>
+            <div class="filter-row">
+                <label>Општина:</label>
+                <select id="filter-municipality" onchange="applyFilters()"><option value="">Сите</option></select>
+            </div>
+            <div class="filter-row">
+                <label>Населба:</label>
+                <select id="filter-suburb" onchange="applyFilters()"><option value="">Сите</option></select>
+            </div>
+            <div class="filter-row">
+                <label>Регион:</label>
+                <select id="filter-region" onchange="applyFilters()"><option value="">Сите</option></select>
+            </div>
+            <div style="text-align:right;margin-top:4px;">
+                <button class="filter-clear" onclick="clearFilters()">Исчисти филтри</button>
+            </div>
+        </div>
     </div>
     <div id="radius-modal">
         <div class="radius-dialog">
@@ -2246,6 +2297,11 @@
         // Track state
         const activeChannels = new Set(Object.keys(channelColors));
         let searchTerm = "";
+        let filterChannel = "";
+        let filterCity = "";
+        let filterMunicipality = "";
+        let filterSuburb = "";
+        let filterRegion = "";
         const clusterGroup = L.markerClusterGroup({ maxClusterRadius: 40, spiderfyOnMaxZoom: true });
         map.addLayer(clusterGroup);
 
@@ -2256,12 +2312,69 @@
                 if (!activeChannels.has(loc.channel)) return;
                 if (searchTerm && !loc.name.toLowerCase().includes(searchTerm) &&
                     !loc.street.toLowerCase().includes(searchTerm) &&
-                    !loc.id.includes(searchTerm)) return;
+                    !loc.id.toLowerCase().includes(searchTerm)) return;
+                if (filterChannel && loc.channel !== filterChannel) return;
+                if (filterCity && (loc.city || '') !== filterCity) return;
+                if (filterMunicipality && (loc.municipality || '') !== filterMunicipality) return;
+                if (filterSuburb && (loc.suburb || '') !== filterSuburb) return;
+                if (filterRegion && (loc.region || '') !== filterRegion) return;
                 clusterGroup.addLayer(createMarker(loc));
                 count++;
             });
             document.getElementById('result-count').textContent =
                 `${count} / ${locations.length} локации`;
+        }
+
+        function toggleFilters() {
+            var panel = document.getElementById('filter-panel');
+            var toggle = document.getElementById('filter-toggle');
+            panel.classList.toggle('open');
+            toggle.textContent = panel.classList.contains('open') ? 'Филтри ▲' : 'Филтри ▼';
+        }
+
+        function populateFilterDropdowns() {
+            var channels = {}, cities = {}, municipalities = {}, suburbs = {}, regions = {};
+            locations.forEach(function(l) {
+                if (l.channel) channels[l.channel] = 1;
+                if (l.city) cities[l.city] = 1;
+                if (l.municipality) municipalities[l.municipality] = 1;
+                if (l.suburb) suburbs[l.suburb] = 1;
+                if (l.region) regions[l.region] = 1;
+            });
+            fillSelect('filter-channel', channels);
+            fillSelect('filter-city', cities);
+            fillSelect('filter-municipality', municipalities);
+            fillSelect('filter-suburb', suburbs);
+            fillSelect('filter-region', regions);
+        }
+
+        function fillSelect(id, items) {
+            var sel = document.getElementById(id);
+            var val = sel.value;
+            sel.innerHTML = '<option value="">Сите</option>';
+            Object.keys(items).sort().forEach(function(k) {
+                sel.innerHTML += '<option value="' + k.replace(/"/g, '&quot;') + '">' + k + '</option>';
+            });
+            sel.value = val;
+        }
+
+        function applyFilters() {
+            filterChannel = document.getElementById('filter-channel').value;
+            filterCity = document.getElementById('filter-city').value;
+            filterMunicipality = document.getElementById('filter-municipality').value;
+            filterSuburb = document.getElementById('filter-suburb').value;
+            filterRegion = document.getElementById('filter-region').value;
+            refreshMarkers();
+        }
+
+        function clearFilters() {
+            document.getElementById('filter-channel').value = '';
+            document.getElementById('filter-city').value = '';
+            document.getElementById('filter-municipality').value = '';
+            document.getElementById('filter-suburb').value = '';
+            document.getElementById('filter-region').value = '';
+            filterChannel = filterCity = filterMunicipality = filterSuburb = filterRegion = '';
+            refreshMarkers();
         }
 
         // Build legend
@@ -2588,7 +2701,7 @@
                     activeChannels.has(loc.channel) && (
                     loc.name.toLowerCase().includes(searchTerm) ||
                     loc.street.toLowerCase().includes(searchTerm) ||
-                    loc.id.includes(searchTerm))
+                    loc.id.toLowerCase().includes(searchTerm))
                 );
                 if (matches.length === 1) {
                     map.setView([matches[0].lat, matches[0].lng], 17);
@@ -2834,6 +2947,7 @@
             });
             Object.keys(channelColors).forEach(ch => activeChannels.add(ch));
             buildLegend();
+            populateFilterDropdowns();
             updateQuotaProgress();
             refreshMarkers();
         }
