@@ -73,14 +73,15 @@
         .import-stats b { color: #8e44ad; }
         .import-mode { display: flex; gap: 16px; margin: 12px 0; }
         .import-mode label { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
-        .import-actions { display: flex; gap: 10px; margin-top: 12px; }
+        .import-actions { display: flex; gap: 10px; margin-top: 16px; padding-top: 12px; border-top: 2px solid #27ae60; }
         .btn-import {
-            padding: 10px 24px; background: #8e44ad; color: #fff; border: none;
-            border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold;
+            padding: 14px 30px; background: #27ae60; color: #fff; border: none;
+            border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold;
         }
-        .btn-import:hover { background: #7d3c98; }
+        .btn-import:hover { background: #219a52; }
+        .btn-import:disabled { background: #95a5a6; cursor: wait; }
         .btn-cancel {
-            padding: 10px 20px; background: #eee; color: #555; border: none;
+            padding: 14px 20px; background: #eee; color: #555; border: none;
             border-radius: 6px; cursor: pointer; font-size: 14px;
         }
         .btn-cancel:hover { background: #ddd; }
@@ -796,6 +797,8 @@
                     document.getElementById('import-info').innerHTML = html;
                     pendingImport = parsed;
                     console.log('Import ready, pendingImport set with', parsed.length, 'items');
+                    // Scroll buttons into view
+                    document.getElementById('btn-import-confirm').scrollIntoView({ behavior: 'smooth', block: 'center' });
                 } catch (err) {
                     console.error('Import parse error:', err);
                     alert('Грешка при читање: ' + err.message);
