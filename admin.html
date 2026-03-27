@@ -377,17 +377,22 @@
             setSyncStatus('syncing', 'Синхронизација...');
 
             try {
-                // Load locations (supports chunked storage)
+                // Load locations (parallel chunked loading)
                 const sharedDoc = await db.collection('shared').doc('locations').get();
                 if (sharedDoc.exists) {
                     const data = sharedDoc.data();
                     if (data.channelColors) Object.assign(channelColors, data.channelColors);
                     if (data.chunked && data.chunkCount) {
-                        locations = [];
+                        setSyncStatus('syncing', 'Вчитување локации...');
+                        const chunkPromises = [];
                         for (let i = 0; i < data.chunkCount; i++) {
-                            const chunk = await db.collection('shared').doc('locations_' + i).get();
-                            if (chunk.exists && chunk.data().items) locations = locations.concat(chunk.data().items);
+                            chunkPromises.push(db.collection('shared').doc('locations_' + i).get());
                         }
+                        const chunks = await Promise.all(chunkPromises);
+                        locations = [];
+                        chunks.forEach(function(chunk) {
+                            if (chunk.exists && chunk.data().items) locations = locations.concat(chunk.data().items);
+                        });
                     } else if (data.items) {
                         locations = data.items;
                     }

@@ -3053,18 +3053,23 @@
             if (currentUser.role !== 'admin') adminBtn.style.display = 'none';
 
             try {
-                // Load shared locations from Firestore (supports chunked storage)
+                // Load shared locations from Firestore (parallel chunked loading)
                 const sharedDoc = await db.collection('shared').doc('locations').get();
                 if (sharedDoc.exists) {
                     const data = sharedDoc.data();
                     if (data.channelColors) Object.assign(channelColors, data.channelColors);
                     let loadedItems = null;
                     if (data.chunked && data.chunkCount) {
-                        loadedItems = [];
+                        setSyncStatus('syncing', 'Вчитување локации...');
+                        const chunkPromises = [];
                         for (let i = 0; i < data.chunkCount; i++) {
-                            const chunk = await db.collection('shared').doc('locations_' + i).get();
-                            if (chunk.exists && chunk.data().items) loadedItems = loadedItems.concat(chunk.data().items);
+                            chunkPromises.push(db.collection('shared').doc('locations_' + i).get());
                         }
+                        const chunks = await Promise.all(chunkPromises);
+                        loadedItems = [];
+                        chunks.forEach(function(chunk) {
+                            if (chunk.exists && chunk.data().items) loadedItems = loadedItems.concat(chunk.data().items);
+                        });
                     } else if (data.items && data.items.length > 0) {
                         loadedItems = data.items;
                     }
