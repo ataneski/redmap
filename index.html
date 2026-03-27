@@ -2369,7 +2369,8 @@
         }
 
         function zoomToFiltered() {
-            // Collect all visible locations matching current filters
+            var hasFilter = filterChannel || filterCity || filterMunicipality || filterSuburb || filterRegion;
+            if (!hasFilter) return;
             var matched = locations.filter(function(loc) {
                 if (!activeChannels.has(loc.channel)) return false;
                 if (searchTerm && !loc.name.toLowerCase().includes(searchTerm) &&
@@ -2382,9 +2383,10 @@
                 if (filterRegion && (loc.region || '') !== filterRegion) return false;
                 return true;
             });
-            if (matched.length > 0 && matched.length < locations.length) {
+            if (matched.length > 0) {
                 var bounds = L.latLngBounds(matched.map(function(l) { return [l.lat, l.lng]; }));
-                map.fitBounds(bounds.pad(0.1));
+                map.invalidateSize();
+                setTimeout(function() { map.fitBounds(bounds.pad(0.1), { animate: true, maxZoom: 17 }); }, 100);
             }
         }
 
