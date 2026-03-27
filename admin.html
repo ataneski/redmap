@@ -262,6 +262,38 @@
             </div>
         </div>
 
+        <!-- Products Import -->
+        <div class="card">
+            <h2>Производи за анкета</h2>
+            <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap;">
+                <div id="product-import-area" style="border:2px dashed #ccc;border-radius:8px;padding:16px 24px;cursor:pointer;text-align:center;flex:1;min-width:200px;" onclick="openProductFilePicker()">
+                    <p style="font-size:14px;font-weight:bold;color:#333;">Импорт производи од Excel</p>
+                    <p style="font-size:12px;color:#888;">Колони: category, brand_name, Type, Size, product_name, HRC, FT, Item cat, in/out</p>
+                </div>
+                <div id="product-stats" style="font-size:13px;color:#666;min-width:150px;">
+                    <div>Вкупно производи: <b id="stat-products">0</b></div>
+                    <div>Категории: <b id="stat-prod-categories">0</b></div>
+                    <div>Брендови: <b id="stat-prod-brands">0</b></div>
+                </div>
+            </div>
+            <div id="product-import-preview" style="display:none;margin-bottom:12px;">
+                <div id="product-import-info"></div>
+                <div style="display:flex;gap:10px;margin-top:10px;">
+                    <button class="btn-create" id="btn-product-import-confirm" style="background:#27ae60;">Импортирај производи</button>
+                    <button class="btn-cancel" id="btn-product-import-cancel" onclick="document.getElementById('product-import-preview').style.display='none';">Откажи</button>
+                </div>
+            </div>
+            <div id="product-table-wrap" style="max-height:300px;overflow-y:auto;">
+                <table class="ch-table" style="font-size:12px;">
+                    <thead><tr><th>Категорија</th><th>Бренд</th><th>Производ</th><th>Тип</th><th>Големина</th><th>HRC</th><th>FT</th></tr></thead>
+                    <tbody id="product-table-body"><tr><td colspan="7" class="loading">Нема производи</td></tr></tbody>
+                </table>
+            </div>
+            <div style="margin-top:8px;">
+                <a href="survey.html" style="color:#2980b9;font-size:13px;font-weight:bold;">Отвори анкета →</a>
+            </div>
+        </div>
+
         <!-- Channel Stats -->
         <div class="card">
             <h2>Статистика по канали</h2>
@@ -402,8 +434,8 @@
                     if (saved) try { locations = JSON.parse(saved); } catch(e) {}
                 }
 
-                // Load all users
-                await loadAllUsers();
+                // Load all users and products
+                await Promise.all([loadAllUsers(), loadProducts()]);
 
                 setSyncStatus('online', 'Поврзан');
                 renderAll();
@@ -924,6 +956,166 @@
             e.preventDefault();
             importArea.style.borderColor = '#ccc';
             if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+        });
+
+        // ---- Products ----
+        let products = [];
+
+        async function loadProducts() {
+            try {
+                var doc = await db.collection('shared').doc('products').get();
+                if (doc.exists) {
+                    var data = doc.data();
+                    if (data.chunked && data.chunkCount) {
+                        var promises = [];
+                        for (var i = 0; i < data.chunkCount; i++) promises.push(db.collection('shared').doc('products_' + i).get());
+                        var chunks = await Promise.all(promises);
+                        products = [];
+                        chunks.forEach(function(c) { if (c.exists && c.data().items) products = products.concat(c.data().items); });
+                    } else if (data.items) {
+                        products = data.items;
+                    }
+                }
+            } catch(e) {
+                console.warn('Products load error:', e);
+            }
+            if (products.length === 0) {
+                try { var s = localStorage.getItem('skopje_products'); if (s) products = JSON.parse(s); } catch(e) {}
+            }
+            renderProducts();
+        }
+
+        function renderProducts() {
+            document.getElementById('stat-products').textContent = products.length;
+            var cats = {}, brands = {};
+            products.forEach(function(p) { cats[p.category] = 1; brands[p.brand] = 1; });
+            document.getElementById('stat-prod-categories').textContent = Object.keys(cats).length;
+            document.getElementById('stat-prod-brands').textContent = Object.keys(brands).length;
+
+            var body = document.getElementById('product-table-body');
+            if (products.length === 0) { body.innerHTML = '<tr><td colspan="7" class="loading">Нема производи. Импортирај од Excel.</td></tr>'; return; }
+            var html = '';
+            products.slice(0, 100).forEach(function(p) {
+                html += '<tr><td>' + (p.category||'') + '</td><td>' + (p.brand||'') + '</td><td>' + (p.name||'') + '</td><td>' + (p.type||'') + '</td><td>' + (p.size||'') + '</td><td>' + (p.hrc||'') + '</td><td>' + (p.ft||'') + '</td></tr>';
+            });
+            if (products.length > 100) html += '<tr><td colspan="7" style="color:#888;font-size:11px;">... и уште ' + (products.length - 100) + ' производи</td></tr>';
+            body.innerHTML = html;
+        }
+
+        var pendingProducts = null;
+
+        function openProductFilePicker() {
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.xlsx,.xls,.csv';
+            input.onchange = function() { handleProductFile(input.files[0]); };
+            input.click();
+        }
+
+        var productColumnMapping = {
+            'category': 'category', 'категорија': 'category', 'item_cat': 'item_cat',
+            'brand_name': 'brand', 'brand': 'brand', 'бренд': 'brand',
+            'type': 'type', 'тип': 'type', 'packaging': 'type', 'пакување': 'type',
+            'size': 'size', 'големина': 'size', 'литража': 'size',
+            'product_name': 'name', 'name': 'name', 'име': 'name', 'производ': 'name',
+            'hrc': 'hrc', 'ft': 'ft',
+            'in/out': 'in_out', 'in_out': 'in_out'
+        };
+
+        function handleProductFile(file) {
+            if (!file) return;
+            document.getElementById('product-import-info').innerHTML = '<p style="color:#888;">Вчитување...</p>';
+            document.getElementById('product-import-preview').style.display = 'block';
+            var reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    var data = new Uint8Array(evt.target.result);
+                    var wb = XLSX.read(data, { type: 'array' });
+                    var rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                    if (!rows.length) { alert('Фајлот е празен.'); return; }
+
+                    var headers = Object.keys(rows[0]);
+                    var colMap = {};
+                    headers.forEach(function(h) {
+                        var norm = h.trim().toLowerCase().replace(/\s+/g, '_');
+                        if (productColumnMapping[norm]) colMap[h] = productColumnMapping[norm];
+                    });
+                    console.log('Product headers:', headers, 'Mapping:', colMap);
+
+                    var parsed = [];
+                    var counter = 0;
+                    rows.forEach(function(row) {
+                        var obj = {};
+                        Object.entries(colMap).forEach(function(e) { obj[e[1]] = row[e[0]] != null ? String(row[e[0]]).trim() : ''; });
+                        if (!obj.name && !obj.brand) return;
+                        if (!obj.name) obj.name = (obj.brand || '') + ',' + (obj.size || '') + ',' + (obj.type || '');
+                        counter++;
+                        parsed.push({
+                            id: 'p_' + counter,
+                            category: obj.category || 'Друго',
+                            item_cat: obj.item_cat || '',
+                            brand: obj.brand || '',
+                            type: obj.type || '',
+                            size: obj.size || '',
+                            name: obj.name || '',
+                            hrc: obj.hrc || '',
+                            ft: obj.ft || '',
+                            in_out: obj.in_out || ''
+                        });
+                    });
+
+                    if (!parsed.length) { alert('Нема валидни производи.'); return; }
+
+                    var cats = {}, brands = {};
+                    parsed.forEach(function(p) { cats[p.category] = (cats[p.category]||0)+1; brands[p.brand] = 1; });
+
+                    var html = '<div class="import-stats"><b>' + parsed.length + '</b> производи, <b>' + Object.keys(cats).length + '</b> категории, <b>' + Object.keys(brands).length + '</b> брендови</div>';
+                    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;"><tr><th style="border:1px solid #ddd;padding:4px;">Категорија</th><th style="border:1px solid #ddd;padding:4px;">Број</th></tr>';
+                    Object.entries(cats).sort(function(a,b){return b[1]-a[1];}).forEach(function(e) {
+                        html += '<tr><td style="border:1px solid #ddd;padding:4px;">' + e[0] + '</td><td style="border:1px solid #ddd;padding:4px;">' + e[1] + '</td></tr>';
+                    });
+                    html += '</table>';
+
+                    document.getElementById('product-import-info').innerHTML = html;
+                    pendingProducts = parsed;
+                    document.getElementById('btn-product-import-confirm').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } catch(err) {
+                    alert('Грешка: ' + err.message);
+                    document.getElementById('product-import-preview').style.display = 'none';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        document.getElementById('btn-product-import-confirm').addEventListener('click', async function() {
+            if (!pendingProducts) return;
+            products = pendingProducts;
+            var btn = document.getElementById('btn-product-import-confirm');
+            btn.textContent = 'Зачувување...';
+            btn.disabled = true;
+
+            localStorage.setItem('skopje_products', JSON.stringify(products));
+
+            try {
+                var chunkSize = 300;
+                var chunkCount = Math.ceil(products.length / chunkSize);
+                for (var i = 0; i < products.length; i += chunkSize) {
+                    var chunk = products.slice(i, i + chunkSize);
+                    await db.collection('shared').doc('products_' + Math.floor(i / chunkSize)).set({ items: chunk });
+                }
+                await db.collection('shared').doc('products').set({
+                    chunked: true, chunkCount: chunkCount, totalCount: products.length
+                });
+                alert('Успешно импортирани ' + products.length + ' производи!');
+            } catch(e) {
+                alert('Грешка при зачувување: ' + e.message);
+            }
+
+            btn.textContent = 'Импортирај производи';
+            btn.disabled = false;
+            pendingProducts = null;
+            document.getElementById('product-import-preview').style.display = 'none';
+            renderProducts();
         });
 
         // ---- Geocoding ----
