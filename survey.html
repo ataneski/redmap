@@ -87,43 +87,27 @@
             margin-left: 4px; font-size: 10px;
         }
         .brand-chip.active .brand-count { background: rgba(255,255,255,0.3); }
-        #filter-bar {
-            display: flex; gap: 6px; padding: 4px 10px;
-            background: #f9f9f9; border-bottom: 1px solid #e0e0e0; align-items: center;
-            overflow-x: auto; -webkit-overflow-scrolling: touch;
-            flex-shrink: 0; scrollbar-width: none;
-        }
-        #filter-bar::-webkit-scrollbar { display: none; }
-        .filter-group { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
-        .filter-sep { width: 1px; height: 20px; background: #ddd; margin: 0 4px; flex-shrink: 0; }
-        .filter-label { font-size: 10px; color: #888; font-weight: bold; margin-right: 2px; flex-shrink: 0; }
         .filter-chip {
-            padding: 3px 8px; border-radius: 10px; border: 1px solid #ccc;
-            background: #fff; color: #555; font-size: 11px; font-weight: bold;
-            cursor: pointer; min-height: 24px; transition: all 0.15s; flex-shrink: 0;
+            padding: 5px 12px; border-radius: 10px; border: 1px solid #ccc;
+            background: #fff; color: #555; font-size: 12px; font-weight: bold;
+            cursor: pointer; min-height: 30px; transition: all 0.15s;
         }
         .filter-chip:hover { border-color: #2980b9; }
         .filter-chip.active { background: #2980b9; color: #fff; border-color: #2980b9; }
         #products-list {
-            flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px 12px;
+            flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 6px 10px;
         }
         .product-row {
-            display: flex; align-items: center; padding: 10px 12px; margin-bottom: 4px;
-            background: #fff; border-radius: 6px; cursor: pointer; min-height: 48px;
+            display: flex; align-items: center; padding: 6px 10px; margin-bottom: 3px;
+            background: #fff; border-radius: 6px; min-height: 44px;
             border: 2px solid transparent; transition: all 0.15s;
             box-shadow: 0 1px 2px rgba(0,0,0,0.06);
         }
-        .product-row:hover { border-color: #2980b9; }
-        .product-row.selected { border-color: #27ae60; background: #f0fff4; }
-        .product-row .check-mark {
-            width: 24px; height: 24px; border-radius: 50%; border: 2px solid #ccc;
-            display: flex; align-items: center; justify-content: center;
-            margin-right: 10px; font-size: 14px; flex-shrink: 0; transition: all 0.15s;
-        }
-        .product-row.selected .check-mark { background: #27ae60; border-color: #27ae60; color: #fff; }
-        .product-info { flex: 1; }
-        .product-name { font-size: 14px; font-weight: bold; color: #333; }
-        .product-meta { font-size: 12px; color: #888; margin-top: 2px; }
+        .product-row:hover { border-color: #ddd; }
+        .product-row.has-price { border-color: #27ae60; background: #f0fff4; }
+        .product-info { flex: 1; cursor: pointer; min-width: 0; }
+        .product-name { font-size: 13px; font-weight: bold; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .product-meta { font-size: 11px; color: #888; margin-top: 1px; }
         .badge {
             display: inline-block; padding: 1px 6px; border-radius: 3px;
             font-size: 10px; font-weight: bold; color: #fff; margin-right: 4px;
@@ -132,50 +116,26 @@
         .badge-PET { background: #3498db; }
         .badge-RGB { background: #27ae60; }
         .badge-default { background: #95a5a6; }
+        .inline-price {
+            width: 80px; padding: 6px; font-size: 20px; font-weight: bold;
+            text-align: center; border: 2px solid #ddd; border-radius: 6px;
+            outline: none; transition: border-color 0.15s; flex-shrink: 0;
+        }
+        .inline-price:focus { border-color: #2980b9; }
+        .inline-price.has-value { border-color: #27ae60; background: #f0fff4; }
         #no-selection-msg {
             display: flex; align-items: center; justify-content: center;
             height: 100%; color: #aaa; font-size: 16px; text-align: center; padding: 20px;
         }
 
-        /* Right column - price list */
-        #col-prices {
-            width: 300px; min-width: 300px; background: #fff; border-left: 1px solid #e0e0e0;
-            display: flex; flex-direction: column; overflow: hidden;
+        /* Right column - filters */
+        #col-filters {
+            width: 200px; min-width: 200px; background: #fff; border-left: 1px solid #e0e0e0;
+            overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px;
         }
-        #prices-header {
-            padding: 10px 12px; border-bottom: 1px solid #e0e0e0;
-            font-size: 14px; font-weight: bold; color: #333; background: #fafafa;
-        }
-        #prices-list {
-            flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px;
-        }
-        .price-item {
-            display: flex; align-items: center; gap: 8px; padding: 8px;
-            border-bottom: 1px solid #f0f0f0; transition: background 0.3s;
-        }
-        .price-item.flash-green { background: #d4edda; }
-        .price-item.flash-red { background: #f8d7da; }
-        .price-item-info { flex: 1; min-width: 0; }
-        .price-item-name { font-size: 12px; font-weight: bold; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .price-item-meta { font-size: 11px; color: #888; }
-        .price-input {
-            width: 80px; padding: 8px; font-size: 24px; font-weight: bold;
-            text-align: center; border: 2px solid #ddd; border-radius: 6px;
-            outline: none; transition: border-color 0.15s;
-        }
-        .price-input:focus { border-color: #2980b9; }
-        .price-input.has-value { border-color: #27ae60; background: #f0fff4; }
-        .btn-remove {
-            width: 32px; height: 32px; border-radius: 50%; border: none;
-            background: #eee; color: #e74c3c; font-size: 16px; font-weight: bold;
-            cursor: pointer; display: flex; align-items: center; justify-content: center;
-            flex-shrink: 0;
-        }
-        .btn-remove:hover { background: #fdd; }
-        #prices-empty {
-            display: flex; align-items: center; justify-content: center;
-            height: 100%; color: #bbb; font-size: 14px; text-align: center; padding: 20px;
-        }
+        .filters-section { margin-bottom: 12px; }
+        .filter-title { font-size: 12px; font-weight: bold; color: #333; margin-bottom: 6px; }
+        .filter-buttons { display: flex; flex-wrap: wrap; gap: 4px; }
 
         /* Bottom bar */
         #bottom-bar {
@@ -213,11 +173,11 @@
         #loading-overlay .loading-text { margin-top: 12px; font-size: 14px; color: #888; }
 
         /* Responsive - mobile / smaller tablets */
-        @media (max-width: 800px) {
+        @media (max-width: 900px) {
             #col-categories { width: 140px; min-width: 140px; }
-            #col-prices { width: 240px; min-width: 240px; }
+            #col-filters { width: 160px; min-width: 160px; }
             .cat-btn { font-size: 12px; padding: 8px 8px; }
-            .price-input { width: 70px; font-size: 20px; }
+            .inline-price { width: 70px; font-size: 18px; }
         }
         @media (max-width: 600px) {
             #main { flex-direction: column; }
@@ -229,9 +189,8 @@
             }
             .cat-btn { width: auto; white-space: nowrap; border-bottom: none; border-right: 1px solid rgba(255,255,255,0.2); }
             #col-products { min-height: 200px; }
-            #col-prices {
-                width: 100%; min-width: unset; border-left: none; border-top: 1px solid #e0e0e0;
-                max-height: 40vh;
+            #col-filters {
+                display: none; /* Filters hidden on small screens */
             }
             .survey-toggle label { font-size: 11px; padding: 3px 6px; }
             #user-name { display: none; }
@@ -287,9 +246,14 @@
         <div id="col-categories"></div>
         <div id="col-products">
             <div id="brands-bar"></div>
-            <div id="filter-bar">
-                <div class="filter-group">
-                    <span class="filter-label">Пакување:</span>
+            <div id="products-list">
+                <div id="no-selection-msg">Избери категорија од левата страна</div>
+            </div>
+        </div>
+        <div id="col-filters">
+            <div class="filters-section">
+                <div class="filter-title">Пакување</div>
+                <div class="filter-buttons" id="filter-type-btns">
                     <button class="filter-chip active" data-filter="type" data-value="">Сите</button>
                     <button class="filter-chip" data-filter="type" data-value="PET">PET</button>
                     <button class="filter-chip" data-filter="type" data-value="CAN">CAN</button>
@@ -297,21 +261,21 @@
                     <button class="filter-chip" data-filter="type" data-value="NRGB">Стакло</button>
                     <button class="filter-chip" data-filter="type" data-value="Toceno">Точено</button>
                 </div>
-                <div class="filter-sep"></div>
-                <div class="filter-group">
-                    <span class="filter-label">Големина:</span>
+            </div>
+            <div class="filters-section">
+                <div class="filter-title">Големина</div>
+                <div class="filter-buttons">
                     <button class="filter-chip active" data-filter="size" data-value="">Сите</button>
                     <span id="size-filters"></span>
                 </div>
             </div>
-            <div id="products-list">
-                <div id="no-selection-msg">Избери категорија од левата страна</div>
-            </div>
-        </div>
-        <div id="col-prices">
-            <div id="prices-header">Цени (0)</div>
-            <div id="prices-list">
-                <div id="prices-empty">Додај производи за внес на цени</div>
+            <div class="filters-section" style="border-top:2px solid #27ae60;margin-top:8px;padding-top:10px;">
+                <div class="filter-title" style="color:#27ae60;">Резиме</div>
+                <div id="summary-info" style="font-size:13px;color:#555;">
+                    <div>Производи со цена: <b id="summary-with-price">0</b></div>
+                    <div>Без цена: <b id="summary-no-price">0</b></div>
+                    <div style="margin-top:8px;font-size:11px;color:#888;">Вкупно селектирани: <span id="summary-total">0</span></div>
+                </div>
             </div>
         </div>
     </div>
@@ -398,7 +362,7 @@
         });
 
         // ---- Filter chips (type / size) ----
-        document.getElementById('filter-bar').addEventListener('click', function(e) {
+        document.getElementById('col-filters').addEventListener('click', function(e) {
             var chip = e.target.closest('.filter-chip');
             if (!chip) return;
             var filterName = chip.dataset.filter;
@@ -544,24 +508,60 @@
             }
             prods.forEach(function(p) {
                 var row = document.createElement('div');
-                row.className = 'product-row' + (selectedProducts[p.id] ? ' selected' : '');
+                var hasPrice = selectedProducts[p.id] && selectedProducts[p.id].price;
+                row.className = 'product-row' + (hasPrice ? ' has-price' : '');
+                row.dataset.id = p.id;
                 var badgeClass = 'badge-' + (p.type || 'default');
                 if (!['CAN','PET','RGB'].includes(p.type)) badgeClass = 'badge-default';
+                var priceVal = selectedProducts[p.id] ? selectedProducts[p.id].price : '';
                 row.innerHTML =
-                    '<div class="check-mark">' + (selectedProducts[p.id] ? '&#10003;' : '') + '</div>' +
                     '<div class="product-info">' +
                         '<div class="product-name">' + escHtml(p.brand || '') + ' ' + escHtml(p.size || '') + '</div>' +
                         '<div class="product-meta">' +
                             '<span class="badge ' + badgeClass + '">' + escHtml(p.type || '-') + '</span> ' +
                             escHtml(p.name || '') +
                         '</div>' +
-                    '</div>';
-                row.addEventListener('click', function() {
-                    toggleProduct(p);
-                    renderProductsList();
-                    renderPriceList();
+                    '</div>' +
+                    '<input type="text" inputmode="decimal" class="inline-price' + (priceVal ? ' has-value' : '') + '" ' +
+                        'value="' + priceVal + '" placeholder="Цена" data-pid="' + p.id + '">';
+
+                // Price input events
+                var input = row.querySelector('.inline-price');
+                input.addEventListener('focus', function() {
+                    // Auto-select product when entering price
+                    if (!selectedProducts[p.id]) {
+                        selectedProducts[p.id] = { product: p, price: '' };
+                    }
+                });
+                input.addEventListener('input', function() {
+                    if (!selectedProducts[p.id]) {
+                        selectedProducts[p.id] = { product: p, price: '' };
+                    }
+                    selectedProducts[p.id].price = this.value;
+                    this.classList.toggle('has-value', !!this.value);
+                    row.classList.toggle('has-price', !!this.value);
                     updateCounts();
                     autoSaveDraft();
+                });
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' || e.key === 'Tab') {
+                        e.preventDefault();
+                        // Focus next empty price input
+                        var allInputs = container.querySelectorAll('.inline-price');
+                        var found = false;
+                        for (var j = 0; j < allInputs.length; j++) {
+                            if (found && !allInputs[j].value) { allInputs[j].focus(); return; }
+                            if (allInputs[j] === this) found = true;
+                        }
+                        // Wrap around to first empty
+                        for (var k = 0; k < allInputs.length; k++) {
+                            if (!allInputs[k].value) { allInputs[k].focus(); return; }
+                        }
+                    }
+                });
+                // Click on product info (not input) to clear price
+                row.querySelector('.product-info').addEventListener('click', function() {
+                    input.focus();
                 });
                 container.appendChild(row);
             });
@@ -591,93 +591,8 @@
         }
 
         // ---- Render price list ----
-        function renderPriceList() {
-            var container = document.getElementById('prices-list');
-            var keys = Object.keys(selectedProducts);
-            document.getElementById('prices-header').textContent = 'Цени (' + keys.length + ')';
-            if (keys.length === 0) {
-                container.innerHTML = '<div id="prices-empty">Додај производи за внес на цени</div>';
-                return;
-            }
-            container.innerHTML = '';
-            var firstEmpty = null;
-            keys.forEach(function(id) {
-                var entry = selectedProducts[id];
-                var p = entry.product;
-                var div = document.createElement('div');
-                div.className = 'price-item';
-                div.setAttribute('data-id', id);
-
-                var info = document.createElement('div');
-                info.className = 'price-item-info';
-                info.innerHTML = '<div class="price-item-name">' + escHtml(p.brand || '') + ' ' + escHtml(p.size || '') + '</div>' +
-                    '<div class="price-item-meta">' + escHtml(p.type || '') + ' | ' + escHtml(p.name || '') + '</div>';
-
-                var input = document.createElement('input');
-                input.type = 'text';
-                input.inputMode = 'decimal';
-                input.className = 'price-input' + (entry.price ? ' has-value' : '');
-                input.value = entry.price;
-                input.placeholder = '0';
-                input.setAttribute('data-id', id);
-                input.addEventListener('input', function() {
-                    var val = this.value.replace(/[^0-9.,]/g, '');
-                    this.value = val;
-                    selectedProducts[id].price = val;
-                    this.className = 'price-input' + (val ? ' has-value' : '');
-                    updateCounts();
-                    autoSaveDraft();
-                });
-                input.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter' || e.key === 'Tab') {
-                        e.preventDefault();
-                        focusNextEmptyPrice(id);
-                    }
-                });
-                if (!entry.price && !firstEmpty) firstEmpty = input;
-
-                var btn = document.createElement('button');
-                btn.className = 'btn-remove';
-                btn.innerHTML = '&times;';
-                btn.addEventListener('click', function() {
-                    div.classList.add('flash-red');
-                    setTimeout(function() {
-                        delete selectedProducts[id];
-                        renderPriceList();
-                        renderProductsList();
-                        updateCounts();
-                        autoSaveDraft();
-                    }, 200);
-                });
-
-                div.appendChild(info);
-                div.appendChild(input);
-                div.appendChild(btn);
-                container.appendChild(div);
-            });
-            if (firstEmpty) {
-                setTimeout(function() { firstEmpty.focus(); }, 100);
-            }
-        }
-
-        // ---- Focus next empty price input ----
-        function focusNextEmptyPrice(afterId) {
-            var keys = Object.keys(selectedProducts);
-            var idx = keys.indexOf(afterId);
-            for (var i = idx + 1; i < keys.length; i++) {
-                if (!selectedProducts[keys[i]].price) {
-                    var inp = document.querySelector('.price-input[data-id="' + keys[i] + '"]');
-                    if (inp) { inp.focus(); return; }
-                }
-            }
-            // Wrap around
-            for (var j = 0; j < idx; j++) {
-                if (!selectedProducts[keys[j]].price) {
-                    var inp2 = document.querySelector('.price-input[data-id="' + keys[j] + '"]');
-                    if (inp2) { inp2.focus(); return; }
-                }
-            }
-        }
+        // Price list is now inline in products - this is a no-op for compatibility
+        function renderPriceList() { updateCounts(); }
 
         // ---- Update counts ----
         function updateCounts() {
@@ -688,6 +603,13 @@
                 if (selectedProducts[id].price) filled++;
             });
             document.getElementById('price-count').textContent = filled + ' / ' + total + ' цени внесени';
+            // Update right panel summary
+            var swp = document.getElementById('summary-with-price');
+            var snp = document.getElementById('summary-no-price');
+            var st = document.getElementById('summary-total');
+            if (swp) swp.textContent = filled;
+            if (snp) snp.textContent = total - filled;
+            if (st) st.textContent = total;
         }
 
         // ---- Auto-save draft to localStorage ----
