@@ -79,6 +79,19 @@
         }
         .brand-chip:hover { background: #ebf5fb; }
         .brand-chip.active { background: #2980b9; color: #fff; }
+        #filter-bar {
+            display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 12px;
+            background: #f9f9f9; border-bottom: 1px solid #e0e0e0; align-items: center;
+        }
+        .filter-group { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+        .filter-label { font-size: 11px; color: #888; font-weight: bold; margin-right: 2px; }
+        .filter-chip {
+            padding: 4px 10px; border-radius: 12px; border: 1px solid #ccc;
+            background: #fff; color: #555; font-size: 12px; font-weight: bold;
+            cursor: pointer; min-height: 28px; transition: all 0.15s;
+        }
+        .filter-chip:hover { border-color: #2980b9; }
+        .filter-chip.active { background: #2980b9; color: #fff; border-color: #2980b9; }
         #products-list {
             flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px 12px;
         }
@@ -262,6 +275,22 @@
         <div id="col-categories"></div>
         <div id="col-products">
             <div id="brands-bar"></div>
+            <div id="filter-bar">
+                <div class="filter-group">
+                    <span class="filter-label">Пакување:</span>
+                    <button class="filter-chip active" data-filter="type" data-value="">Сите</button>
+                    <button class="filter-chip" data-filter="type" data-value="PET">PET</button>
+                    <button class="filter-chip" data-filter="type" data-value="CAN">CAN</button>
+                    <button class="filter-chip" data-filter="type" data-value="RGB">RGB</button>
+                    <button class="filter-chip" data-filter="type" data-value="NRGB">Стакло</button>
+                    <button class="filter-chip" data-filter="type" data-value="Toceno">Точено</button>
+                </div>
+                <div class="filter-group">
+                    <span class="filter-label">Големина:</span>
+                    <button class="filter-chip active" data-filter="size" data-value="">Сите</button>
+                    <span id="size-filters"></span>
+                </div>
+            </div>
             <div id="products-list">
                 <div id="no-selection-msg">Избери категорија од левата страна</div>
             </div>
@@ -315,6 +344,8 @@
         let activeCategory = null;
         let activeBrand = null;
         let surveyType = 'all';
+        let filterType = '';
+        let filterSize = '';
         let locationId = '';
         let locationName = '';
 
@@ -352,6 +383,41 @@
                 document.getElementById('products-list').innerHTML = '<div id="no-selection-msg">Избери категорија од левата страна</div>';
             });
         });
+
+        // ---- Filter chips (type / size) ----
+        document.getElementById('filter-bar').addEventListener('click', function(e) {
+            var chip = e.target.closest('.filter-chip');
+            if (!chip) return;
+            var filterName = chip.dataset.filter;
+            var filterVal = chip.dataset.value;
+            if (filterName === 'type') {
+                filterType = filterVal;
+                document.querySelectorAll('.filter-chip[data-filter="type"]').forEach(function(c) { c.classList.remove('active'); });
+            } else if (filterName === 'size') {
+                filterSize = filterVal;
+                document.querySelectorAll('.filter-chip[data-filter="size"]').forEach(function(c) { c.classList.remove('active'); });
+            }
+            chip.classList.add('active');
+            renderProductsList();
+        });
+
+        function populateSizeFilters() {
+            var sizes = {};
+            allProducts.forEach(function(p) { if (p.size) sizes[p.size] = 1; });
+            var sorted = Object.keys(sizes).sort(function(a, b) {
+                return parseFloat(String(a).replace(',', '.')) - parseFloat(String(b).replace(',', '.'));
+            });
+            var container = document.getElementById('size-filters');
+            container.innerHTML = '';
+            sorted.forEach(function(s) {
+                var btn = document.createElement('button');
+                btn.className = 'filter-chip';
+                btn.dataset.filter = 'size';
+                btn.dataset.value = s;
+                btn.textContent = s;
+                container.appendChild(btn);
+            });
+        }
 
         // ---- Filter products by survey type ----
         function applyFilter() {
@@ -439,6 +505,8 @@
             var prods = filteredProducts.filter(function(p) {
                 if ((p.item_cat || 'Друго') !== activeCategory) return false;
                 if (activeBrand && (p.brand || 'Непознат') !== activeBrand) return false;
+                if (filterType && (p.type || '') !== filterType) return false;
+                if (filterSize && (p.size || '') !== filterSize) return false;
                 return true;
             });
             if (prods.length === 0) {
@@ -761,6 +829,7 @@
             }
 
             applyFilter();
+            populateSizeFilters();
             loadDraft();
             renderCategories();
             renderPriceList();
