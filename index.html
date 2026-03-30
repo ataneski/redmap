@@ -3058,12 +3058,11 @@
         }
 
         async function syncFromFirestore() {
-            setSyncStatus('syncing', 'Синхронизација...');
-            // User logged in silently
-
             // Show admin button only for admins
             const adminBtn = document.getElementById('btn-admin');
             if (currentUser.role !== 'admin') adminBtn.style.display = 'none';
+
+            var locationsChanged = false;
 
             try {
                 // Load shared locations from Firestore (parallel chunked loading)
@@ -3073,7 +3072,6 @@
                     if (data.channelColors) Object.assign(channelColors, data.channelColors);
                     let loadedItems = null;
                     if (data.chunked && data.chunkCount) {
-                        setSyncStatus('syncing', 'Вчитување локации...');
                         const chunkPromises = [];
                         for (let i = 0; i < data.chunkCount; i++) {
                             chunkPromises.push(db.collection('shared').doc('locations_' + i).get());
@@ -3086,13 +3084,14 @@
                     } else if (data.items && data.items.length > 0) {
                         loadedItems = data.items;
                     }
-                    if (loadedItems && loadedItems.length > 0) {
+                    if (loadedItems && loadedItems.length > 0 && loadedItems.length !== locations.length) {
+                        locationsChanged = true;
                         applyImportedLocations(loadedItems);
                         localStorage.setItem('skopje_imported_locations', JSON.stringify(loadedItems));
                     }
                 }
 
-                // Load user data from Firestore
+                // Load user data silently - just update localStorage
                 const [visitedDoc, planDoc, quotasDoc, savedPlansDoc] = await Promise.all([
                     fsReadUser('visited'),
                     fsReadUser('plan'),
@@ -3114,17 +3113,17 @@
                 }
                 if (savedPlansDoc && savedPlansDoc.plans) localStorage.setItem('skopje_saved_plans', JSON.stringify(savedPlansDoc.plans));
 
-                // Rebuild UI with synced data
-                buildLegend();
+                // Only rebuild UI if locations actually changed from Firestore
+                // Otherwise just update lightweight stuff
+                if (locationsChanged) {
+                    buildLegend();
+                    refreshMarkers();
+                }
                 updateQuotaProgress();
-                refreshMarkers();
                 renderPlanPanel();
                 renderSavedPlans();
-
-                setSyncStatus('online', currentUser.displayName);
             } catch (err) {
                 console.warn('Firestore sync error:', err);
-                setSyncStatus('offline', 'Грешка при синхр.');
             }
         }
 
