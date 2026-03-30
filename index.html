@@ -1892,12 +1892,10 @@
             const plan = getPlan();
             if (!plan.includes(id)) { plan.push(id); savePlan(plan); }
             renderPlanPanel();
-            refreshMarkers();
         }
         function removeFromPlan(id) {
             savePlan(getPlan().filter(x => x !== id));
             renderPlanPanel();
-            refreshMarkers();
             if (planRouteLayer) optimizePlanRoute();
         }
         function togglePlan(id) {
@@ -1918,7 +1916,12 @@
             setVisited(id, nowVisited);
             updateQuotaProgress();
             renderPlanPanel();
-            refreshMarkers();
+            // Update just marker icon
+            const marker = markerMap[id];
+            if (marker) {
+                const loc = locations.find(l => l.id === id);
+                if (loc) marker.setIcon(createPinIcon(channelColors[loc.channel] || '#999', nowVisited));
+            }
             if (nowVisited) showNextNearest(id);
         }
 
@@ -2271,18 +2274,31 @@
                     <button class="${planBtnClass}" onclick="togglePlan('${loc.id}')">&#9776; ${planBtnText}</button>
                     <button class="btn-radius" onclick="openRadiusModal('${loc.id}')">&#11044; + Блиски</button>
                 </div>
-            `, { maxWidth: 280, autoPan: false })
-            .on('popupopen', function() { openPopupLocId = loc.id; })
-            .on('popupclose', function() { if (openPopupLocId === loc.id) openPopupLocId = null; });
+            `);
         }
 
         function toggleVisited(id) {
             const cb = document.getElementById('vis-' + id);
-            setVisited(id, cb.checked);
+            const nowVisited = cb.checked;
+            setVisited(id, nowVisited);
             updateQuotaProgress();
             renderPlanPanel();
-            refreshMarkers();
-            if (cb.checked) showNextNearest(id);
+            // Update just this marker's icon without rebuilding everything
+            const marker = markerMap[id];
+            if (marker) {
+                const loc = locations.find(l => l.id === id);
+                if (loc) {
+                    const color = channelColors[loc.channel] || '#999';
+                    marker.setIcon(createPinIcon(color, nowVisited));
+                }
+            }
+            // Update label text in popup
+            const label = document.querySelector(`label[for="vis-${id}"]`);
+            if (label) {
+                label.textContent = nowVisited ? 'Посетен!' : 'Посетен?';
+                label.className = nowVisited ? 'visited-yes' : '';
+            }
+            if (nowVisited) showNextNearest(id);
         }
 
         // Track state
@@ -2293,56 +2309,16 @@
         let filterMunicipality = "";
         let filterSuburb = "";
         let filterRegion = "";
-        const clusterGroup = L.markerClusterGroup({
-            maxClusterRadius: 40,
-            spiderfyOnMaxZoom: true,
-            showCoverageOnHover: false,
-            zoomToBoundsOnClick: true,
-            spiderfyDistanceMultiplier: 1.5,
-            removeOutsideVisibleBounds: false,
-            animate: false
-        });
+        const clusterGroup = L.markerClusterGroup({ maxClusterRadius: 40, spiderfyOnMaxZoom: true });
         map.addLayer(clusterGroup);
 
-        let openPopupLocId = null;
-        let isReopening = false;
-
-        // Find and reopen a popup by location ID
-        function reopenPopupById(id) {
-            if (!id || isReopening) return;
-            isReopening = true;
-            clusterGroup.eachLayer(function(layer) {
-                if (layer._popup) {
-                    var content = layer._popup.getContent();
-                    if (content && content.indexOf('vis-' + id) > -1) {
-                        // Zoom to marker if not visible
-                        var ll = layer.getLatLng();
-                        if (!map.getBounds().contains(ll)) {
-                            map.setView(ll, map.getZoom(), { animate: false });
-                        }
-                        layer.openPopup();
-                    }
-                }
-            });
-            setTimeout(function() { isReopening = false; }, 500);
-        }
-
-        // Only reopen on actual resize/rotation, NOT on zoom/move (that causes loops)
-        var resizeTimer = null;
-        map.on('resize', function() {
-            clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(function() { reopenPopupById(openPopupLocId); }, 300);
-        });
-        window.addEventListener('orientationchange', function() {
-            setTimeout(function() { reopenPopupById(openPopupLocId); }, 600);
-        });
+        // Store marker references by location ID for direct updates
+        let markerMap = {};
 
         function refreshMarkers() {
-            // Remember which popup was open
-            var wasOpen = openPopupLocId;
             clusterGroup.clearLayers();
+            markerMap = {};
             let count = 0;
-            var reopenMarker = null;
             locations.forEach(loc => {
                 if (!activeChannels.has(loc.channel)) return;
                 if (searchTerm && !loc.name.toLowerCase().includes(searchTerm) &&
@@ -2354,16 +2330,12 @@
                 if (filterSuburb && (loc.suburb || '') !== filterSuburb) return;
                 if (filterRegion && (loc.region || '') !== filterRegion) return;
                 var marker = createMarker(loc);
-                if (wasOpen && loc.id === wasOpen) reopenMarker = marker;
+                markerMap[loc.id] = marker;
                 clusterGroup.addLayer(marker);
                 count++;
             });
             document.getElementById('result-count').textContent =
                 `${count} / ${locations.length} локации`;
-            // Reopen popup if it was open before refresh
-            if (reopenMarker) {
-                setTimeout(function() { reopenMarker.openPopup(); }, 100);
-            }
         }
 
         function toggleFilters() {
