@@ -2320,11 +2320,34 @@
             spiderfyOnMaxZoom: true,
             showCoverageOnHover: false,
             zoomToBoundsOnClick: true,
-            spiderfyDistanceMultiplier: 1.5
+            spiderfyDistanceMultiplier: 1.5,
+            removeOutsideVisibleBounds: false,
+            animate: false
         });
         map.addLayer(clusterGroup);
 
         let openPopupLocId = null;
+
+        // Reopen popup after screen resize/rotation/zoom
+        function reopenSavedPopup() {
+            if (!openPopupLocId) return;
+            var id = openPopupLocId;
+            setTimeout(function() {
+                clusterGroup.eachLayer(function(layer) {
+                    if (layer._popup) {
+                        var content = layer._popup.getContent();
+                        if (content && content.indexOf('vis-' + id) > -1) {
+                            layer.openPopup();
+                        }
+                    }
+                });
+            }, 200);
+        }
+
+        map.on('resize', reopenSavedPopup);
+        map.on('zoomend', reopenSavedPopup);
+        map.on('moveend', function() { if (openPopupLocId) setTimeout(reopenSavedPopup, 100); });
+        window.addEventListener('orientationchange', function() { setTimeout(reopenSavedPopup, 500); });
 
         function refreshMarkers() {
             // Remember which popup was open
