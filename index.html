@@ -2293,7 +2293,9 @@
                     <button class="${planBtnClass}" onclick="togglePlan('${loc.id}')">&#9776; ${planBtnText}</button>
                     <button class="btn-radius" onclick="openRadiusModal('${loc.id}')">&#11044; + Блиски</button>
                 </div>
-            `);
+            `, { maxWidth: 280, autoPan: true })
+            .on('popupopen', function() { openPopupLocId = loc.id; })
+            .on('popupclose', function() { if (openPopupLocId === loc.id) openPopupLocId = null; });
         }
 
         function toggleVisited(id) {
@@ -2313,12 +2315,23 @@
         let filterMunicipality = "";
         let filterSuburb = "";
         let filterRegion = "";
-        const clusterGroup = L.markerClusterGroup({ maxClusterRadius: 40, spiderfyOnMaxZoom: true });
+        const clusterGroup = L.markerClusterGroup({
+            maxClusterRadius: 40,
+            spiderfyOnMaxZoom: true,
+            showCoverageOnHover: false,
+            zoomToBoundsOnClick: true,
+            spiderfyDistanceMultiplier: 1.5
+        });
         map.addLayer(clusterGroup);
 
+        let openPopupLocId = null;
+
         function refreshMarkers() {
+            // Remember which popup was open
+            var wasOpen = openPopupLocId;
             clusterGroup.clearLayers();
             let count = 0;
+            var reopenMarker = null;
             locations.forEach(loc => {
                 if (!activeChannels.has(loc.channel)) return;
                 if (searchTerm && !loc.name.toLowerCase().includes(searchTerm) &&
@@ -2329,11 +2342,17 @@
                 if (filterMunicipality && (loc.municipality || '') !== filterMunicipality) return;
                 if (filterSuburb && (loc.suburb || '') !== filterSuburb) return;
                 if (filterRegion && (loc.region || '') !== filterRegion) return;
-                clusterGroup.addLayer(createMarker(loc));
+                var marker = createMarker(loc);
+                if (wasOpen && loc.id === wasOpen) reopenMarker = marker;
+                clusterGroup.addLayer(marker);
                 count++;
             });
             document.getElementById('result-count').textContent =
                 `${count} / ${locations.length} локации`;
+            // Reopen popup if it was open before refresh
+            if (reopenMarker) {
+                setTimeout(function() { reopenMarker.openPopup(); }, 100);
+            }
         }
 
         function toggleFilters() {
