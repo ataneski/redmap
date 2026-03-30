@@ -2293,7 +2293,7 @@
                     <button class="${planBtnClass}" onclick="togglePlan('${loc.id}')">&#9776; ${planBtnText}</button>
                     <button class="btn-radius" onclick="openRadiusModal('${loc.id}')">&#11044; + Блиски</button>
                 </div>
-            `, { maxWidth: 280, autoPan: true })
+            `, { maxWidth: 280, autoPan: false })
             .on('popupopen', function() { openPopupLocId = loc.id; })
             .on('popupclose', function() { if (openPopupLocId === loc.id) openPopupLocId = null; });
         }
@@ -2327,27 +2327,37 @@
         map.addLayer(clusterGroup);
 
         let openPopupLocId = null;
+        let isReopening = false;
 
-        // Reopen popup after screen resize/rotation/zoom
-        function reopenSavedPopup() {
-            if (!openPopupLocId) return;
-            var id = openPopupLocId;
-            setTimeout(function() {
-                clusterGroup.eachLayer(function(layer) {
-                    if (layer._popup) {
-                        var content = layer._popup.getContent();
-                        if (content && content.indexOf('vis-' + id) > -1) {
-                            layer.openPopup();
+        // Find and reopen a popup by location ID
+        function reopenPopupById(id) {
+            if (!id || isReopening) return;
+            isReopening = true;
+            clusterGroup.eachLayer(function(layer) {
+                if (layer._popup) {
+                    var content = layer._popup.getContent();
+                    if (content && content.indexOf('vis-' + id) > -1) {
+                        // Zoom to marker if not visible
+                        var ll = layer.getLatLng();
+                        if (!map.getBounds().contains(ll)) {
+                            map.setView(ll, map.getZoom(), { animate: false });
                         }
+                        layer.openPopup();
                     }
-                });
-            }, 200);
+                }
+            });
+            setTimeout(function() { isReopening = false; }, 500);
         }
 
-        map.on('resize', reopenSavedPopup);
-        map.on('zoomend', reopenSavedPopup);
-        map.on('moveend', function() { if (openPopupLocId) setTimeout(reopenSavedPopup, 100); });
-        window.addEventListener('orientationchange', function() { setTimeout(reopenSavedPopup, 500); });
+        // Only reopen on actual resize/rotation, NOT on zoom/move (that causes loops)
+        var resizeTimer = null;
+        map.on('resize', function() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function() { reopenPopupById(openPopupLocId); }, 300);
+        });
+        window.addEventListener('orientationchange', function() {
+            setTimeout(function() { reopenPopupById(openPopupLocId); }, 600);
+        });
 
         function refreshMarkers() {
             // Remember which popup was open
