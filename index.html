@@ -644,6 +644,63 @@
         </div>
     </div>
     <script>
+        // ---- Login handler FIRST (before anything else can break) ----
+        (function setupLogin() {
+            var loginBtn = document.getElementById('btn-login');
+            if (!loginBtn) return;
+
+            async function hashPw(password) {
+                var encoder = new TextEncoder();
+                var data = encoder.encode(password + '_redmap_salt');
+                var hash = await crypto.subtle.digest('SHA-256', data);
+                return Array.from(new Uint8Array(hash)).map(function(b) { return b.toString(16).padStart(2, '0'); }).join('');
+            }
+
+            async function doLoginEarly() {
+                var username = document.getElementById('login-user').value.trim().toLowerCase();
+                var password = document.getElementById('login-pass').value;
+                var errorEl = document.getElementById('login-error');
+                errorEl.style.display = 'none';
+                if (!username || !password) { errorEl.textContent = 'Внеси корисничко име и лозинка'; errorEl.style.display = 'block'; return; }
+
+                loginBtn.textContent = 'Вчитување...';
+                loginBtn.disabled = true;
+
+                try {
+                    firebase.initializeApp({
+                        apiKey: "AIzaSyBuhfZ1y45M-PNSEuebfvIPFymqPXR_y_w",
+                        authDomain: "redceni.firebaseapp.com",
+                        projectId: "redceni",
+                        storageBucket: "redceni.firebasestorage.app",
+                        messagingSenderId: "216404221760",
+                        appId: "1:216404221760:web:b00efeec1cb6c5251624a5"
+                    });
+                    await firebase.auth().signInAnonymously();
+                    var profileDoc = await firebase.firestore().collection('userProfiles').doc(username).get();
+                    if (!profileDoc.exists) {
+                        errorEl.textContent = 'Корисничкото име не постои'; errorEl.style.display = 'block';
+                        loginBtn.textContent = 'Најави се'; loginBtn.disabled = false; return;
+                    }
+                    var profile = profileDoc.data();
+                    var pwHash = await hashPw(password);
+                    if (pwHash !== profile.passwordHash) {
+                        errorEl.textContent = 'Погрешна лозинка'; errorEl.style.display = 'block';
+                        loginBtn.textContent = 'Најави се'; loginBtn.disabled = false; return;
+                    }
+                    localStorage.setItem('skopje_session', JSON.stringify({ username: username, displayName: profile.displayName, role: profile.role }));
+                    location.reload();
+                } catch(err) {
+                    console.error('Login error:', err);
+                    errorEl.textContent = 'Грешка: ' + err.message; errorEl.style.display = 'block';
+                    loginBtn.textContent = 'Најави се'; loginBtn.disabled = false;
+                }
+            }
+
+            loginBtn.addEventListener('click', doLoginEarly);
+            document.getElementById('login-pass').addEventListener('keydown', function(e) { if (e.key === 'Enter') doLoginEarly(); });
+            document.getElementById('login-user').addEventListener('keydown', function(e) { if (e.key === 'Enter') document.getElementById('login-pass').focus(); });
+        })();
+
         // ---- Firebase Setup ----
         const firebaseConfig = {
             apiKey: "AIzaSyBuhfZ1y45M-PNSEuebfvIPFymqPXR_y_w",
@@ -654,7 +711,7 @@
             appId: "1:216404221760:web:b00efeec1cb6c5251624a5",
             measurementId: "G-5LW0EW9V9R"
         };
-        firebase.initializeApp(firebaseConfig);
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const auth = firebase.auth();
         let currentUser = null; // stores { username, displayName, role }
