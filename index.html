@@ -157,19 +157,7 @@
         }
         #btn-daily-plan:hover { background: #2471a3; }
 
-        #sync-status {
-            position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
-            z-index: 1000; background: #fff; border-radius: 20px; padding: 4px 12px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2); font-family: Arial, sans-serif;
-            font-size: 11px; display: flex; align-items: center; gap: 6px;
-            transition: opacity 0.3s;
-        }
-        #sync-status .sync-dot {
-            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-        }
-        #sync-status .sync-dot.online { background: #27ae60; }
-        #sync-status .sync-dot.offline { background: #e74c3c; }
-        #sync-status .sync-dot.syncing { background: #f39c12; animation: pulse-ring 1s infinite; }
+
 
         /* Login screen */
         #login-screen {
@@ -199,11 +187,6 @@
         .login-error {
             color: #e74c3c; font-size: 12px; margin-top: 8px; display: none;
         }
-        #logged-user {
-            font-size: 11px; color: #fff; background: rgba(255,255,255,0.15);
-            padding: 2px 8px; border-radius: 10px; margin-left: 4px;
-        }
-
         #btn-admin {
             position: absolute; bottom: 120px; right: 10px; z-index: 1000;
             background: #8e44ad; color: #fff; border: none; border-radius: 8px;
@@ -533,7 +516,7 @@
         </div>
     </div>
     <div id="map"></div>
-    <div id="sync-status"><span class="sync-dot syncing"></span><span id="sync-text">Поврзување...</span><span id="logged-user"></span></div>
+    <div id="sync-status" style="display:none;"></div>
     <a id="btn-admin" href="admin.html">Админ</a>
     <button id="btn-daily-plan">Дневен план</button>
     <div id="daily-modal">
@@ -675,12 +658,7 @@
         const auth = firebase.auth();
         let currentUser = null; // stores { username, displayName, role }
 
-        function setSyncStatus(state, text) {
-            const dot = document.querySelector('#sync-status .sync-dot');
-            const txt = document.getElementById('sync-text');
-            dot.className = 'sync-dot ' + state;
-            txt.textContent = text;
-        }
+        function setSyncStatus(state, text) { /* silent */ }
 
         // Simple hash for passwords (SHA-256)
         async function hashPassword(password) {
@@ -3109,7 +3087,7 @@
 
         async function syncFromFirestore() {
             setSyncStatus('syncing', 'Синхронизација...');
-            document.getElementById('logged-user').textContent = currentUser.displayName;
+            // User logged in silently
 
             // Show admin button only for admins
             const adminBtn = document.getElementById('btn-admin');
@@ -3172,8 +3150,6 @@
                 renderSavedPlans();
 
                 setSyncStatus('online', currentUser.displayName);
-
-                setTimeout(() => { document.getElementById('sync-status').style.opacity = '0.4'; }, 3000);
             } catch (err) {
                 console.warn('Firestore sync error:', err);
                 setSyncStatus('offline', 'Грешка при синхр.');
