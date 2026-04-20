@@ -1,4 +1,4 @@
-var CACHE_NAME = 'redmap-v1';
+var CACHE_NAME = 'redmap-v2';
 var URLS_TO_CACHE = [
   '/redmap/',
   '/redmap/index.html',
@@ -37,25 +37,24 @@ self.addEventListener('activate', function(e) {
 });
 
 self.addEventListener('fetch', function(e) {
-  // Network first for API calls, cache first for static assets
+  // Only handle http(s) requests - skip chrome-extension, etc.
+  if (!e.request.url.startsWith('http')) return;
+  // Network first for API calls
   if (e.request.url.includes('firestore.googleapis.com') ||
       e.request.url.includes('identitytoolkit.googleapis.com') ||
       e.request.url.includes('nominatim.openstreetmap.org')) {
-    // Network only for API calls
     return;
   }
   e.respondWith(
     fetch(e.request).then(function(response) {
-      // Cache successful responses
-      if (response && response.status === 200) {
+      if (response && response.status === 200 && e.request.method === 'GET') {
         var clone = response.clone();
         caches.open(CACHE_NAME).then(function(cache) {
-          cache.put(e.request, clone);
-        });
+          try { cache.put(e.request, clone); } catch(err) {}
+        }).catch(function() {});
       }
       return response;
     }).catch(function() {
-      // Fallback to cache
       return caches.match(e.request);
     })
   );
