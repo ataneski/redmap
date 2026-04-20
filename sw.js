@@ -1,4 +1,4 @@
-var CACHE_NAME = 'redmap-v2';
+var CACHE_NAME = 'redmap-v3';
 var URLS_TO_CACHE = [
   '/redmap/',
   '/redmap/index.html',

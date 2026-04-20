@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#2980b9">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Redmap">
     <link rel="manifest" href="manifest.json">
@@ -2463,10 +2463,18 @@
         function zoomToFiltered() {
             var hasFilter = filterChannel || filterCity || filterMunicipality || filterSuburb || filterRegion;
             if (!hasFilter) return;
-            // Use already-visible markers instead of re-filtering all locations
-            var bounds = clusterGroup.getBounds();
-            if (bounds.isValid()) {
-                map.fitBounds(bounds.pad(0.1), { animate: true, maxZoom: 17 });
+            var points = [];
+            locations.forEach(function(loc) {
+                if (!activeChannels.has(loc.channel)) return;
+                if (filterChannel && loc.channel !== filterChannel) return;
+                if (filterCity && (loc.city || '') !== filterCity) return;
+                if (filterMunicipality && (loc.municipality || '') !== filterMunicipality) return;
+                if (filterSuburb && (loc.suburb || '') !== filterSuburb) return;
+                if (filterRegion && (loc.region || '') !== filterRegion) return;
+                points.push([loc.lat, loc.lng]);
+            });
+            if (points.length > 0) {
+                map.fitBounds(L.latLngBounds(points).pad(0.1), { maxZoom: 17 });
             }
         }
 
